@@ -61,7 +61,7 @@
 			<view class="sidebar-footer">
 				<view class="sidebar-link" @click="onSidebarHelp">
 					<text class="material-symbols-outlined">help</text>
-					<text>帮助中心</text>
+					<text>关于系统</text>
 				</view>
 				<view class="sidebar-link sidebar-link-danger" @click="showLogoutConfirm">
 					<text class="material-symbols-outlined">logout</text>
@@ -529,6 +529,14 @@
 							/>
 						</view>
 						<button
+							class="access-dir-sort-btn"
+							type="default"
+							@click="toggleAccessDirectorySort"
+						>
+							<text class="material-symbols-outlined access-dir-sort-btn-ic">swap_vert</text>
+							{{ accessDirectorySortMode === 'time' ? '按学号排序' : '按时间排序' }}
+						</button>
+						<button
 							class="access-dir-search-btn"
 							type="default"
 							:disabled="userDirectoryLoading"
@@ -548,9 +556,10 @@
 						</view>
 						<view class="access-user-rows">
 							<view
-								v-for="(user, index) in accessDirectoryUsers"
-								:key="'u_' + index + '_' + (user.sub ?? '') + '_' + (user.id ?? '') + '_' + (user.role || '')"
 								class="access-user-row"
+								:class="{ 'access-user-row--sorting': accessDirectorySortAnimating }"
+								v-for="(user, index) in accessDirectoryUsers"
+								:key="'u_' + (user.sub ?? '') + '_' + (user.id ?? '') + '_' + (user.role || '')"
 							>
 								<view class="access-user-profile">
 									<view class="access-user-avatar" :class="'access-user-avatar--' + (user.role || 'student')">
@@ -1172,7 +1181,7 @@
 								<button class="invite-btn" @click="inviteMember('student')">+ 邀请学生</button>
 							</view>
 							<view class="member-list">
-								<view v-for="student in groupMembers.students" :key="student.member_id" class="member-item">
+								<view v-for="student in sortedGroupStudents" :key="student.member_id" class="member-item">
 									<view class="member-info">
 										<text class="member-name">{{ student.name }}</text>
 										<text class="member-id">学号: {{ student.student_id || student.account_id || student.member_id || '—' }}</text>
@@ -1258,15 +1267,7 @@
 							:placeholder="inviteType === 'teacher' ? '请输入教师工号' : '请输入学生学号'"
 						/>
 					</view>
-					<view class="form-item admin-dialog-form-item" v-if="inviteType === 'teacher'">
-						<text class="form-label">角色</text>
-						<picker mode="selector" :range="['member', 'admin']" @change="onInviteRoleChange">
-							<view class="picker-view admin-dialog-picker">
-								<text>{{ inviteForm.role === 'admin' ? '管理员' : '普通成员' }}</text>
-								<text class="material-symbols-outlined admin-dialog-picker-arrow">expand_more</text>
-							</view>
-						</picker>
-					</view>
+
 				</view>
 				<view class="admin-dialog-footer">
 					<button class="admin-dialog-btn admin-dialog-btn--ghost" type="default" @click="closeInviteModal">取消</button>
@@ -2007,6 +2008,8 @@
 					errors: []
 				},
 				searchKeyword: '',
+								accessDirectorySortMode: 'time',
+								accessDirectorySortAnimating: false,
 				userDirectoryLoading: false,
 				accessRoleFilter: 'all',
 				users: [],
@@ -2203,8 +2206,35 @@
 			accessDirectoryUsers() {
 				const base = this.filteredUsers;
 				const f = this.accessRoleFilter;
-				if (f === 'all') return base;
-				return base.filter((u) => (u.role || '') === f);
+				const filtered = f === 'all' ? base : base.filter((u) => (u.role || '') === f);
+				const list = [...filtered];
+				if (this.accessDirectorySortMode === 'studentId') {
+					return list.sort((a, b) => {
+						const idA = String(a.id || '');
+						const idB = String(b.id || '');
+						const numA = parseInt(idA, 10);
+						const numB = parseInt(idB, 10);
+						if (!Number.isNaN(numA) && !Number.isNaN(numB)) {
+							return numA - numB;
+						}
+						if (!Number.isNaN(numA)) return -1;
+						if (!Number.isNaN(numB)) return 1;
+						return idA.localeCompare(idB);
+					});
+				}
+				return list.sort((a, b) => {
+					const timeA = a.createdAtSortValue ?? 0;
+					const timeB = b.createdAtSortValue ?? 0;
+					if (timeA !== timeB) return timeB - timeA;
+					const idA = String(a.id || '');
+					const idB = String(b.id || '');
+					const numA = parseInt(idA, 10);
+					const numB = parseInt(idB, 10);
+					if (!Number.isNaN(numA) && !Number.isNaN(numB)) {
+						return numA - numB;
+					}
+					return idA.localeCompare(idB);
+				});
 			},
 			// 可转换的角色列表（排除当前角色）
 			availableRoles() {
@@ -2336,6 +2366,20 @@
 				);
 				return o ? o.label : '全部角色';
 			},
+			/** 群组详情：学生列表按学号排序 */
+			sortedGroupStudents() {
+				const students = this.groupMembers?.students || [];
+				return [...students].sort((a, b) => {
+					const idA = String(a.student_id || a.account_id || a.member_id || '');
+					const idB = String(b.student_id || b.account_id || b.member_id || '');
+					const numA = parseInt(idA, 10);
+					const numB = parseInt(idB, 10);
+					if (!isNaN(numA) && !isNaN(numB)) {
+						return numA - numB;
+					}
+					return idA.localeCompare(idB);
+				});
+			},
 			/** 是否启用关键词以外的筛选（用于底部统计提示） */
 			groupRelationsHasNonSearchFilters() {
 				return (
@@ -2448,6 +2492,13 @@
 				this.groupRelationsGroupDropdownOpen = false;
 				this.groupRelationsRoleDropdownOpen = next;
 			},
+			toggleAccessDirectorySort() {
+				this.accessDirectorySortAnimating = true;
+				this.accessDirectorySortMode = this.accessDirectorySortMode === 'time' ? 'studentId' : 'time';
+				setTimeout(() => {
+					this.accessDirectorySortAnimating = false;
+				}, 260);
+			},
 			selectGroupRelationsGroup(opt) {
 				if (opt) {
 					this.groupRelationsFilterGroupId = opt.value;
@@ -2494,6 +2545,14 @@
 				t = t.replace(/\.\d+Z?$/, '');
 				if (/^\d{4}-\d{2}-\d{2}/.test(t) && t.length > 19) return t.slice(0, 19);
 				return t;
+			},
+			parseDirectoryUserCreatedAt(v) {
+				if (v == null || v === '') return 0;
+				const s = String(v).trim();
+				if (!s) return 0;
+				const normalized = s.includes('T') ? s : s.replace(' ', 'T');
+				const ts = new Date(normalized).getTime();
+				return Number.isNaN(ts) ? 0 : ts;
 			},
 			resolveManagedUserType(user) {
 				const rawType = String(
@@ -2605,9 +2664,9 @@
 					bizId = String(raw.admin_id ?? raw.user_id ?? raw.adminId ?? username ?? sub ?? '').trim();
 				}
 				if (!bizId) bizId = username || (sub != null ? String(sub) : '');
-				const createdAtDisplay = this.formatDirectoryUserCreatedAt(
-					raw.created_at ?? raw.create_time ?? raw.createdTime
-				);
+				const createdAtRaw = raw.created_at ?? raw.create_time ?? raw.createdTime;
+				const createdAtDisplay = this.formatDirectoryUserCreatedAt(createdAtRaw);
+				const createdAtSortValue = this.parseDirectoryUserCreatedAt(createdAtRaw);
 				return {
 					sub,
 					backendUserId,
@@ -2616,7 +2675,8 @@
 					role,
 					username,
 					groupName: raw.group_name || raw.groupName || '',
-					createdAtDisplay
+					createdAtDisplay,
+					createdAtSortValue
 				};
 			},
 			/**
@@ -2676,7 +2736,7 @@
 			},
 			onSidebarHelp() {
 				uni.showToast({
-					title: '如需帮助请联系系统管理员',
+					title: '当前为论文管理系统v1.0版本',
 					icon: 'none'
 				});
 			},
@@ -5517,10 +5577,11 @@
 			} catch (err) {
 				uni.hideLoading();
 				console.error('创建教师失败:', err);
-				// 根据错误信息判断是否为重复
 				const errMsg = err?.message || '';
 				if (errMsg.includes('已存在') || errMsg.includes('exist') || errMsg.includes('duplicate') || errMsg.includes('Conflict')) {
 					uni.showToast({ title: '该工号已存在', icon: 'none' });
+				} else if (errMsg.includes('教师username第一个字符必须') || errMsg.includes("教师 username 第一个字符必须") || (errMsg.includes('第一个字符必须') && errMsg.includes("'t' 或 'T'"))) {
+					uni.showToast({ title: "教师工号的第一个字符必须为 't' 或 'T'", icon: 'none' });
 				} else {
 					uni.showToast({ title: errMsg || '创建失败', icon: 'none' });
 				}
@@ -5554,10 +5615,11 @@
 			} catch (err) {
 				uni.hideLoading();
 				console.error('创建管理员失败:', err);
-				// 根据错误信息判断是否为重复
 				const errMsg = err?.message || '';
 				if (errMsg.includes('已存在') || errMsg.includes('exist') || errMsg.includes('duplicate') || errMsg.includes('Conflict')) {
 					uni.showToast({ title: '该账号已存在', icon: 'none' });
+				} else if (errMsg.includes('管理员username第一个字符必须') || errMsg.includes("管理员 username 第一个字符必须") || (errMsg.includes('第一个字符必须') && errMsg.includes("'a' 或 'A'"))) {
+					uni.showToast({ title: "管理员账号的第一个字符必须为 'a' 或 'A'", icon: 'none' });
 				} else {
 					uni.showToast({ title: errMsg || '创建失败', icon: 'none' });
 				}
@@ -8899,6 +8961,7 @@
 	}
 
 	.access-dir-search {
+		flex: 1;
 		display: flex;
 		align-items: center;
 		gap: 12rpx;
@@ -8906,32 +8969,57 @@
 		padding: 0 20rpx;
 		border-radius: 14rpx;
 		background: #e7e8e9;
+		transition: flex-basis 0.24s ease, transform 0.24s ease, box-shadow 0.24s ease;
 	}
 
-	.access-dir-search-ic {
-		font-size: 34rpx;
-		color: #94a3b8;
-	}
-
-	.access-dir-search-input {
-		flex: 1;
-		min-width: 0;
-		height: 80rpx;
-		font-size: 26rpx;
-		background: transparent;
-		border: none;
-	}
-
+	.access-dir-sort-btn,
 	.access-dir-search-btn {
 		height: 80rpx;
-		padding: 0 36rpx;
 		border-radius: 14rpx;
 		font-size: 26rpx;
 		font-weight: 700;
+		border: none;
+		transition: transform 0.22s ease, opacity 0.22s ease, background 0.22s ease, box-shadow 0.22s ease;
+	}
+
+	.access-dir-sort-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 10rpx;
+		padding: 0 28rpx;
+		color: #0f172a;
+		background: #e2e8f0;
+		box-shadow: 0 6rpx 16rpx rgba(15, 23, 42, 0.08);
+	}
+
+	.access-dir-sort-btn-ic {
+		font-size: 30rpx;
+	}
+
+	.access-dir-search-btn {
+		padding: 0 36rpx;
 		color: #fff;
 		background: linear-gradient(135deg, #005bbf 0%, #1a73e8 100%);
-		border: none;
 		box-shadow: 0 8rpx 20rpx rgba(0, 91, 191, 0.2);
+	}
+
+	.access-dir-sort-btn:active,
+	.access-dir-search-btn:active {
+		transform: translateY(1rpx) scale(0.985);
+	}
+
+	.access-user-rows {
+		transition: opacity 0.24s ease, transform 0.24s ease;
+	}
+
+	.access-user-row {
+		transition: transform 0.24s ease, opacity 0.24s ease, box-shadow 0.24s ease;
+	}
+
+	.access-user-row--sorting {
+		opacity: 0.7;
+		transform: translateY(6rpx) scale(0.995);
 	}
 
 	.access-table-head {
