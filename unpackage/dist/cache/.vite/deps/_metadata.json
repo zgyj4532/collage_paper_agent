@@ -1,25 +1,25 @@
 {
-  "hash": "5b96dd51",
-  "configHash": "c25fc604",
+  "hash": "49f88366",
+  "configHash": "5fc2ed6d",
   "lockfileHash": "87802824",
-  "browserHash": "efd721f4",
+  "browserHash": "30e870c1",
   "optimized": {
     "docx-preview": {
       "src": "../../../../../node_modules/docx-preview/dist/docx-preview.mjs",
       "file": "docx-preview.js",
-      "fileHash": "9cd82d44",
+      "fileHash": "04395eeb",
       "needsInterop": false
     },
     "jszip": {
       "src": "../../../../../node_modules/jszip/dist/jszip.min.js",
       "file": "jszip.js",
-      "fileHash": "1d9ce2a5",
+      "fileHash": "7f8c88fe",
       "needsInterop": true
     }
   },
   "chunks": {
-    "chunk-GJBFUU6B": {
-      "file": "chunk-GJBFUU6B.js"
+    "chunk-LG2LBQCU": {
+      "file": "chunk-LG2LBQCU.js"
     }
   }
 }
