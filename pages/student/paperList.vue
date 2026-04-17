@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="paper-list-page page-enter" :class="{ 'page-fade-out': isPageFadeOut }">
     <!-- 顶部标题栏 -->
     <header class="top-header">
@@ -397,7 +397,28 @@
       </view>
     </view>
   </view>
-    
+  
+  <!-- 关于系统弹窗 -->
+  <view v-if="showAboutModal" class="modal-backdrop" @click.self="showAboutModal = false">
+    <view class="modal-content about-modal">
+      <view class="modal-header">
+        <text class="modal-title">关于系统</text>
+        <text class="modal-close" @click="showAboutModal = false">×</text>
+      </view>
+      <view class="modal-body about-modal-body">
+        <view class="about-icon">
+          <text class="material-symbols-outlined">school</text>
+        </view>
+        <view class="about-title">计测学院毕业论文管理系统</view>
+        <view class="about-version">v1.0</view>
+        <view class="about-desc">为学院师生提供论文管理、审阅和反馈功能。</view>
+      </view>
+      <view class="modal-footer">
+        <view class="btn btn-confirm" @click="showAboutModal = false">确定</view>
+      </view>
+    </view>
+  </view>
+  
   <!-- 修改密码弹窗 -->
   <view v-if="showPasswordModal" class="modal-backdrop" @click.self="closePasswordModal">
     <view class="modal-content">
@@ -411,7 +432,7 @@
           <input 
             class="form-input" 
             type="password" 
-            v-model="passwordForm.currentPassword"
+            v-model="passwordForm.oldPassword"
             placeholder="请输入当前密码"
           />
         </view>
@@ -433,37 +454,10 @@
             placeholder="请再次输入新密码"
           />
         </view>
-        <view class="form-tips" v-if="!passwordError">
-          <text class="tips-text">密码修改成功后需要重新登录</text>
-        </view>
-        <view class="form-tips error-tips" v-else>
-          <text class="tips-text error-text">{{ passwordError }}</text>
-        </view>
       </view>
       <view class="modal-footer">
         <view class="btn btn-cancel" @click="closePasswordModal">取消</view>
         <view class="btn btn-confirm" @click="submitChangePassword">确认修改</view>
-      </view>
-    </view>
-  </view>
-  
-  <!-- 关于系统弹窗 -->
-  <view v-if="showAboutModal" class="modal-backdrop" @click.self="showAboutModal = false">
-    <view class="modal-content about-modal">
-      <view class="modal-header">
-        <text class="modal-title">关于系统</text>
-        <text class="modal-close" @click="showAboutModal = false">×</text>
-      </view>
-      <view class="modal-body about-modal-body">
-        <view class="about-icon">
-          <text class="material-symbols-outlined">school</text>
-        </view>
-        <view class="about-title">计测学院毕业论文管理系统</view>
-        <view class="about-version">v1.0</view>
-        <view class="about-desc">为学院师生提供论文管理、审阅和反馈功能。</view>
-      </view>
-      <view class="modal-footer">
-        <view class="btn btn-confirm" @click="showAboutModal = false">确定</view>
       </view>
     </view>
   </view>
@@ -581,14 +575,16 @@ export default {
       ],
       // 用户卡片
       showUserCard: false,
+      
       // 修改密码弹窗
       showPasswordModal: false,
       passwordForm: {
-        currentPassword: '',
+        oldPassword: '',
         newPassword: '',
         confirmPassword: ''
       },
       passwordError: '',
+      
       // 关于系统弹窗
       showAboutModal: false
     };
@@ -676,27 +672,25 @@ export default {
       }, 1000);
     },
     
-    // 打开修改密码弹窗
+    // 跳转到修改密码页面
     openChangePassword() {
       this.showUserCard = false;
-      this.passwordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
-      this.passwordError = '';
       this.showPasswordModal = true;
     },
     
     // 关闭修改密码弹窗
     closePasswordModal() {
       this.showPasswordModal = false;
-      this.passwordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
+      this.passwordForm = { oldPassword: '', newPassword: '', confirmPassword: '' };
       this.passwordError = '';
     },
     
     // 提交修改密码
     async submitChangePassword() {
-      const { currentPassword, newPassword, confirmPassword } = this.passwordForm;
+      const { oldPassword, newPassword, confirmPassword } = this.passwordForm;
       
-      // 密码表单验证（生产环境不输出密码信息）
-      if (!currentPassword) {
+      // 密码表单验证
+      if (!oldPassword) {
         this.passwordError = '请输入当前密码';
         return;
       }
@@ -712,7 +706,7 @@ export default {
         this.passwordError = '两次输入的新密码不一致';
         return;
       }
-      if (currentPassword === newPassword) {
+      if (oldPassword === newPassword) {
         this.passwordError = '新密码不能与当前密码相同';
         return;
       }
@@ -727,13 +721,13 @@ export default {
         uni.showLoading({ title: '修改中...', mask: true });
         
         const res = await changePassword({
-          old_password: currentPassword,
+          old_password: oldPassword,
           new_password: newPassword
         });
         
         uni.hideLoading();
         
-        // 判断修改成功（后端返回 message 或 HTTP 状态码为 200）
+        // 判断修改成功
         if (res && (res.message?.includes('成功') || res.code === 200)) {
           uni.showToast({ title: '密码修改成功，请重新登录', icon: 'success', duration: 2000 });
           this.closePasswordModal();
@@ -742,7 +736,6 @@ export default {
             uni.reLaunch({ url: '/pages/index/index' });
           }, 2000);
         } else {
-          // 显示后端返回的错误信息
           this.passwordError = res?.detail || res?.message || '密码修改失败';
         }
       } catch (err) {
@@ -4075,76 +4068,16 @@ export default {
   opacity: 0.9;
 }
 
-/* 弹窗样式 */
-.modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10001;
-}
-
-.modal-content {
-  background: #ffffff;
-  border-radius: 24rpx;
-  width: 600rpx;
-  max-width: 90vw;
-  box-shadow: 0 20rpx 60rpx rgba(0, 0, 0, 0.3);
-  animation: modalSlideIn 0.3s ease-out;
-}
-
-@keyframes modalSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-30rpx);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 30rpx 40rpx;
-  border-bottom: 1rpx solid #e8e8e8;
-}
-
-.modal-title {
-  font-size: 32rpx;
-  font-weight: 600;
-  color: #333;
-}
-
-.modal-body {
-  padding: 40rpx;
-}
-
-.modal-loading-text {
-  font-size: 28rpx;
-  color: #666;
-  text-align: center;
-  display: block;
-  margin-top: 20rpx;
-}
-
 /* ==================== 响应式设计 ==================== */
 
 /* 大屏幕 (>1400px) */
 @media screen and (min-width: 1400px) {
   .main-layout {
-    padding-left: 280px;
+    padding-left: 256px;
   }
   
   .sidebar {
-    width: 280px;
+    width: 256px;
   }
   
   .paper-card {
@@ -4155,11 +4088,11 @@ export default {
 /* 中等屏幕 (992px-1399px) */
 @media screen and (max-width: 1399px) and (min-width: 992px) {
   .main-layout {
-    padding-left: 240px;
+    padding-left: 256px;
   }
   
   .sidebar {
-    width: 240px;
+    width: 256px;
   }
   
   .paper-card {
@@ -4170,12 +4103,12 @@ export default {
 /* 平板屏幕 (768px-991px) */
 @media screen and (max-width: 991px) and (min-width: 768px) {
   .main-layout {
-    padding-left: 200px;
+    padding-left: 256px;
     padding-right: 16rpx;
   }
   
   .sidebar {
-    width: 200px;
+    width: 256px;
     padding: 20rpx 12rpx;
   }
   
@@ -4603,22 +4536,20 @@ export default {
 }
 
 .modal-content {
-  background: var(--surface-container-lowest);
-  border-radius: var(--radius-lg);
   width: 90%;
-  max-width: 400px;
-  max-height: 80vh;
+  max-width: 800rpx;
+  background: #fff;
+  border-radius: 20rpx;
+  box-sizing: border-box;
   overflow: hidden;
-  box-shadow: var(--shadow-ambient);
-  animation: modalSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  display: flex;
-  flex-direction: column;
+  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.1);
+  animation: modalContentIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@keyframes modalSlideIn {
+@keyframes modalContentIn {
   from {
     opacity: 0;
-    transform: translateY(-30px) scale(0.95);
+    transform: translateY(-30rpx) scale(0.95);
   }
   to {
     opacity: 1;
@@ -4626,131 +4557,127 @@ export default {
   }
 }
 
-.modal-header {
+.modal-content .modal-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: var(--spacing-4) var(--spacing-5);
-  background: var(--surface-container-low);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-}
-
-.modal-title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--on-surface);
-}
-
-.modal-close {
-  font-size: 1.5rem;
-  color: var(--on-surface-variant);
-  cursor: pointer;
-  padding: var(--spacing-1);
-  transition: color 0.2s;
-}
-
-.modal-close:hover {
-  color: var(--on-surface);
-}
-
-.modal-body {
-  padding: var(--spacing-5);
-  flex: 1;
-  overflow-y: auto;
-}
-
-.modal-footer {
-  display: flex;
-  padding: var(--spacing-4) var(--spacing-5);
-  gap: var(--spacing-3);
-  background: var(--surface-container-low);
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-}
-
-/* 表单样式 */
-.form-item {
-  margin-bottom: var(--spacing-4);
-}
-
-.form-label {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--on-surface);
-  margin-bottom: var(--spacing-2);
-}
-
-.form-input {
-  width: 100%;
-  height: 44px;
-  padding: 0 var(--spacing-4);
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: 0.875rem;
-  color: var(--on-surface);
-  background: var(--surface-container-low);
-  box-sizing: border-box;
-  transition: all 0.2s;
-}
-
-.form-input:focus {
-  background: var(--surface-container-high);
-  outline: none;
-}
-
-.form-tips {
-  margin-top: var(--spacing-3);
-  padding: var(--spacing-3);
-  background: var(--amber-tint);
-  border-radius: var(--radius-md);
-}
-
-.form-tips.error-tips {
-  background: var(--error-container);
-}
-
-.tips-text {
-  font-size: 0.75rem;
-  font-weight: 400;
-  color: var(--on-amber);
-}
-
-.tips-text.error-text {
-  color: var(--on-error-container);
-}
-
-/* 按钮样式 */
-.btn {
-  flex: 1;
-  height: 44px;
-  border-radius: var(--radius-md);
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
   align-items: center;
-  justify-content: center;
+  padding: 30rpx;
+  border-bottom: 1rpx solid #e2e8f0;
 }
 
-.btn-cancel {
-  background: var(--surface-container-high);
-  color: var(--on-surface-variant);
+.modal-content .modal-title {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #1a202c;
 }
 
-.btn-cancel:hover {
-  background: var(--surface-container-low);
+.modal-content .modal-close {
+  font-size: 50rpx;
+  color: #718096;
+  width: 50rpx;
+  height: 50rpx;
+  text-align: center;
+  transition: all 0.2s ease;
 }
 
-.btn-confirm {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
-  color: white;
-  box-shadow: var(--shadow-primary);
+.modal-content .modal-close:active {
+  color: #1677ff;
+  transform: scale(0.9);
 }
 
-.btn-confirm:hover {
-  box-shadow: 0 6px 20px rgba(0, 91, 191, 0.35);
-  transform: translateY(-1px);
+.modal-content .modal-body {
+  padding: 30rpx;
+}
+
+.modal-content .form-item {
+  margin-bottom: 20rpx;
+}
+
+.modal-content .form-label {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 500;
+  color: #2d3748;
+  margin-bottom: 10rpx;
+}
+
+.modal-content .form-input {
+  width: 100%;
+  height: 80rpx;
+  padding: 0 20rpx;
+  border: 2rpx solid #e2e8f0;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+  color: #2d3748;
+  background-color: #fff;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.modal-content .form-input:focus {
+  border-color: #1677ff;
+  outline: none;
+  box-shadow: 0 0 0 3rpx rgba(22, 119, 255, 0.1);
+}
+
+.modal-content .form-tips {
+  margin-top: 20rpx;
+  padding: 20rpx;
+  background: #fef3c7;
+  border-radius: 12rpx;
+}
+
+.modal-content .form-tips.error-tips {
+  background: #ffdad6;
+}
+
+.modal-content .tips-text {
+  font-size: 26rpx;
+  color: #92400e;
+}
+
+.modal-content .tips-text.error-text {
+  color: #410002;
+}
+
+.modal-content .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 20rpx;
+  padding: 20rpx 30rpx;
+  border-top: 1rpx solid #e2e8f0;
+}
+
+.modal-content .btn {
+  padding: 15rpx 30rpx;
+  border-radius: 8rpx;
+  font-size: 28rpx;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modal-content .btn-cancel {
+  background-color: #f7fafc;
+  color: #718096;
+  border: 1rpx solid #e2e8f0;
+}
+
+.modal-content .btn-cancel:hover {
+  background-color: #edf2f7;
+}
+
+.modal-content .btn-confirm {
+  background-color: #1677ff;
+  color: #fff;
+}
+
+.modal-content .btn-confirm:hover {
+  background-color: #0056b3;
+}
+
+.modal-content .btn:active {
+  transform: scale(0.98);
 }
 
 /* 关于系统弹窗 */
