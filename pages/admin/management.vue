@@ -61,7 +61,7 @@
 			<view class="sidebar-footer">
 				<view class="sidebar-link" @click="onSidebarHelp">
 					<text class="material-symbols-outlined">help</text>
-					<text>帮助中心</text>
+					<text>关于系统</text>
 				</view>
 				<view class="sidebar-link sidebar-link-danger" @click="showLogoutConfirm">
 					<text class="material-symbols-outlined">logout</text>
@@ -73,7 +73,7 @@
 		<view class="admin-main">
 			<view class="admin-topbar">
 				<view class="admin-topbar-left">
-					<text v-if="currentTab !== 'permission'" class="admin-page-kicker">系统管理</text>
+					<text class="admin-page-kicker">系统管理</text>
 					<text class="admin-page-title">{{ currentPageTitle }}</text>
 					<text v-if="currentPageDesc" class="admin-page-desc">{{ currentPageDesc }}</text>
 				</view>
@@ -136,7 +136,7 @@
 		<!-- 群组管理（含师生关系导入、批量下载、群组列表，布局参考 group_resource_operations） -->
 		<view v-if="currentTab === 'group'" class="tab-content tab-content-group-ops">
 			<view class="group-ops-page">
-				<view class="group-ops-hero">
+				<view v-if="false" class="group-ops-hero">
 					<view class="group-ops-hero-text">
 						<text class="group-ops-kicker">群组与资源</text>
 						<text class="group-ops-title">群组管理</text>
@@ -151,8 +151,15 @@
 				<view class="group-ops-bento">
 					<view class="group-ops-panel group-ops-panel-import">
 						<view class="group-ops-panel-head">
-							<text class="group-ops-panel-kicker">Bulk Import</text>
-							<text class="group-ops-panel-title">批量导入师生关系</text>
+							<view class="group-ops-panel-head-row">
+								<view class="group-ops-panel-icon">
+									<text class="material-symbols-outlined group-ops-panel-icon-ms">group_add</text>
+								</view>
+								<view class="group-ops-panel-head-copy">
+									<text class="group-ops-panel-kicker">关系同步</text>
+									<text class="group-ops-panel-title">批量导入师生关系</text>
+								</view>
+							</view>
 							<text class="group-ops-panel-desc">上传 CSV，将教师、学生与群组关系写入系统。</text>
 						</view>
 						<view class="import-section group-ops-import-inner">
@@ -213,13 +220,16 @@
 						</view>
 					</view>
 
-					<view class="group-ops-panel group-ops-panel-download">
-						<view class="group-ops-download-card">
+					<view class="group-ops-panel group-ops-panel-download group-ops-download-card">
+							<view class="group-ops-download-head">
 							<view class="group-ops-download-icon-wrap">
 								<text class="material-symbols-outlined group-ops-download-ms">folder_zip</text>
 							</view>
-							<text class="group-ops-download-title">论文打包下载</text>
-							<text class="group-ops-download-desc">按群组名称或编号查询后，打包为 ZIP 下载。</text>
+							<view class="group-ops-download-head-text">
+								<text class="group-ops-download-title">论文打包下载</text>
+								<text class="group-ops-download-desc">按群组名称或编号查询后，打包为 ZIP 下载。</text>
+							</view>
+							</view>
 							<view class="download-section group-ops-download-inner">
 								<view class="download-filters">
 									<view class="filter-item filter-item-column">
@@ -248,7 +258,6 @@
 								</view>
 								<button class="download-btn group-ops-download-start" @click="startDownload">开始下载</button>
 							</view>
-						</view>
 					</view>
 				</view>
 
@@ -257,7 +266,8 @@
 						<text class="group-ops-list-title">群组列表</text>
 						<text class="group-ops-list-sub">按教师工号或群组名称筛选，或浏览全部群组。</text>
 					</view>
-					<view class="group-ops-search-bar">
+					<view class="group-ops-search-layout">
+						<view class="group-ops-search-bar">
 						<text class="group-ops-search-label">查询条件</text>
 						<view class="group-ops-search-row">
 							<text class="material-symbols-outlined group-ops-search-ic">search</text>
@@ -272,7 +282,16 @@
 								<text class="material-symbols-outlined group-ops-search-submit-ic">travel_explore</text>
 								<text>查询群组</text>
 							</button>
+							<button class="group-ops-create-btn" type="default" @click="showCreateGroup">
+								<text class="material-symbols-outlined group-ops-create-ic">add</text>
+								<text>鍒涘缓缇ょ粍</text>
+							</button>
 						</view>
+					</view>
+						<button class="group-ops-search-submit group-ops-create-btn group-ops-create-btn-outside" type="default" @click="showCreateGroup">
+							<text class="material-symbols-outlined group-ops-create-ic">add</text>
+							<text>创建群组</text>
+						</button>
 					</view>
 					<view class="group-list">
 						<view v-for="(group, index) in groups" :key="index" class="group-card">
@@ -529,6 +548,14 @@
 							/>
 						</view>
 						<button
+							class="access-dir-sort-btn"
+							type="default"
+							@click="toggleAccessDirectorySort"
+						>
+							<text class="material-symbols-outlined access-dir-sort-btn-ic">swap_vert</text>
+							{{ accessDirectorySortMode === 'time' ? '按学号排序' : '按时间排序' }}
+						</button>
+						<button
 							class="access-dir-search-btn"
 							type="default"
 							:disabled="userDirectoryLoading"
@@ -548,9 +575,10 @@
 						</view>
 						<view class="access-user-rows">
 							<view
-								v-for="(user, index) in accessDirectoryUsers"
-								:key="'u_' + index + '_' + (user.sub ?? '') + '_' + (user.id ?? '') + '_' + (user.role || '')"
 								class="access-user-row"
+								:class="{ 'access-user-row--sorting': accessDirectorySortAnimating }"
+								v-for="(user, index) in accessDirectoryUsers"
+								:key="'u_' + (user.sub ?? '') + '_' + (user.id ?? '') + '_' + (user.role || '')"
 							>
 								<view class="access-user-profile">
 									<view class="access-user-avatar" :class="'access-user-avatar--' + (user.role || 'student')">
@@ -1010,7 +1038,7 @@
 						/>
 					</view>
 					<view class="notice-center-toolbar-actions">
-						<button class="notice-center-btn-ghost" type="default" @click="loadNoticesFromBackend">
+						<button class="notice-center-btn-ghost" type="default" @click="loadNoticesFromBackend({ forceRefresh: true })">
 							<text class="material-symbols-outlined notice-center-btn-icon">refresh</text>
 							<text>同步列表</text>
 						</button>
@@ -1026,27 +1054,88 @@
 						<text class="notice-center-archive-kicker">Published Archives</text>
 						<text class="notice-center-archive-title">已发布公告</text>
 					</view>
-					<view class="notice-center-segment">
-						<view
-							class="notice-center-segment-item"
-							:class="{ active: noticeAudienceFilter === 'all' }"
-							@click="noticeAudienceFilter = 'all'"
-						>
-							<text>全部</text>
+					<view class="notice-center-archive-actions">
+						<view class="notice-center-page-query">
+							<view class="notice-center-page-pager">
+								<text class="notice-center-page-total">共 {{ noticeTotalCount }} 条</text>
+								<view
+									class="notice-center-page-nav notice-center-page-nav--icon"
+									:class="{ 'notice-center-page-nav--disabled': noticeCurrentPage <= 1 }"
+									@click="changeNoticePageByStep(-1)"
+								>
+									<text class="material-symbols-outlined notice-center-page-nav-ic">chevron_left</text>
+								</view>
+								<view
+									v-for="item in noticePaginationItems"
+									:key="item.key"
+									class="notice-center-page-nav"
+									:class="{
+										'notice-center-page-nav--active': item.type === 'page' && item.value === noticeCurrentPage,
+										'notice-center-page-nav--ellipsis': item.type === 'ellipsis'
+									}"
+									@click="item.type === 'page' && goToNoticePage(item.value)"
+								>
+									<text v-if="item.type === 'ellipsis'" class="notice-center-page-nav-dots">...</text>
+									<text v-else>{{ item.value }}</text>
+								</view>
+								<view
+									class="notice-center-page-nav notice-center-page-nav--icon"
+									:class="{ 'notice-center-page-nav--disabled': noticeTotalPages <= 0 || noticeCurrentPage >= noticeTotalPages }"
+									@click="changeNoticePageByStep(1)"
+								>
+									<text class="material-symbols-outlined notice-center-page-nav-ic">chevron_right</text>
+								</view>
+								<picker
+									mode="selector"
+									:range="noticePageSizeOptionsLabel"
+									:value="noticePageSizePickerIndex"
+									@change="onNoticePageSizeChange"
+								>
+									<view class="notice-center-page-size-picker">
+										<text>{{ noticePageSizeLabel }}</text>
+										<text class="material-symbols-outlined notice-center-page-size-ic">expand_more</text>
+									</view>
+								</picker>
+								<text class="notice-center-page-range">{{ noticePageRangeText }}</text>
+							</view>
+							<input
+								class="notice-center-page-input"
+								type="text"
+								:value="noticePageInput"
+								inputmode="numeric"
+								maxlength="6"
+								placeholder="输入页码"
+								confirm-type="search"
+								@input="onNoticePageInput"
+								@confirm="queryNoticePage"
+							/>
+							<view class="notice-center-page-submit" @click="queryNoticePage">
+								<text class="material-symbols-outlined notice-center-page-submit-ic">manage_search</text>
+								<text>查找</text>
+							</view>
 						</view>
-						<view
-							class="notice-center-segment-item"
-							:class="{ active: noticeAudienceFilter === 'student' }"
-							@click="noticeAudienceFilter = 'student'"
-						>
-							<text>学生</text>
-						</view>
-						<view
-							class="notice-center-segment-item"
-							:class="{ active: noticeAudienceFilter === 'teacher' }"
-							@click="noticeAudienceFilter = 'teacher'"
-						>
-							<text>教师</text>
+						<view class="notice-center-segment">
+							<view
+								class="notice-center-segment-item"
+								:class="{ active: noticeAudienceFilter === 'all' }"
+								@click="noticeAudienceFilter = 'all'"
+							>
+								<text>全部</text>
+							</view>
+							<view
+								class="notice-center-segment-item"
+								:class="{ active: noticeAudienceFilter === 'student' }"
+								@click="noticeAudienceFilter = 'student'"
+							>
+								<text>学生</text>
+							</view>
+							<view
+								class="notice-center-segment-item"
+								:class="{ active: noticeAudienceFilter === 'teacher' }"
+								@click="noticeAudienceFilter = 'teacher'"
+							>
+								<text>教师</text>
+							</view>
 						</view>
 					</view>
 				</view>
@@ -1172,7 +1261,7 @@
 								<button class="invite-btn" @click="inviteMember('student')">+ 邀请学生</button>
 							</view>
 							<view class="member-list">
-								<view v-for="student in groupMembers.students" :key="student.member_id" class="member-item">
+								<view v-for="student in sortedGroupStudents" :key="student.member_id" class="member-item">
 									<view class="member-info">
 										<text class="member-name">{{ student.name }}</text>
 										<text class="member-id">学号: {{ student.student_id || student.account_id || student.member_id || '—' }}</text>
@@ -1258,15 +1347,7 @@
 							:placeholder="inviteType === 'teacher' ? '请输入教师工号' : '请输入学生学号'"
 						/>
 					</view>
-					<view class="form-item admin-dialog-form-item" v-if="inviteType === 'teacher'">
-						<text class="form-label">角色</text>
-						<picker mode="selector" :range="['member', 'admin']" @change="onInviteRoleChange">
-							<view class="picker-view admin-dialog-picker">
-								<text>{{ inviteForm.role === 'admin' ? '管理员' : '普通成员' }}</text>
-								<text class="material-symbols-outlined admin-dialog-picker-arrow">expand_more</text>
-							</view>
-						</picker>
-					</view>
+
 				</view>
 				<view class="admin-dialog-footer">
 					<button class="admin-dialog-btn admin-dialog-btn--ghost" type="default" @click="closeInviteModal">取消</button>
@@ -2007,6 +2088,8 @@
 					errors: []
 				},
 				searchKeyword: '',
+								accessDirectorySortMode: 'time',
+								accessDirectorySortAnimating: false,
 				userDirectoryLoading: false,
 				accessRoleFilter: 'all',
 				users: [],
@@ -2099,6 +2182,11 @@
 				// 公告管理
 				adminNotices: [],
 				noticeSearchQuery: '',
+				noticePageInput: '',
+				noticeCurrentPage: 1,
+				noticeTotalPages: 0,
+				noticeTotalCount: 0,
+				noticePageSize: 30,
 				noticeAudienceFilter: 'all',
 				showNoticeForm: false,
 				editingNoticeIndex: -1,
@@ -2203,8 +2291,35 @@
 			accessDirectoryUsers() {
 				const base = this.filteredUsers;
 				const f = this.accessRoleFilter;
-				if (f === 'all') return base;
-				return base.filter((u) => (u.role || '') === f);
+				const filtered = f === 'all' ? base : base.filter((u) => (u.role || '') === f);
+				const list = [...filtered];
+				if (this.accessDirectorySortMode === 'studentId') {
+					return list.sort((a, b) => {
+						const idA = String(a.id || '');
+						const idB = String(b.id || '');
+						const numA = parseInt(idA, 10);
+						const numB = parseInt(idB, 10);
+						if (!Number.isNaN(numA) && !Number.isNaN(numB)) {
+							return numA - numB;
+						}
+						if (!Number.isNaN(numA)) return -1;
+						if (!Number.isNaN(numB)) return 1;
+						return idA.localeCompare(idB);
+					});
+				}
+				return list.sort((a, b) => {
+					const timeA = a.createdAtSortValue ?? 0;
+					const timeB = b.createdAtSortValue ?? 0;
+					if (timeA !== timeB) return timeB - timeA;
+					const idA = String(a.id || '');
+					const idB = String(b.id || '');
+					const numA = parseInt(idA, 10);
+					const numB = parseInt(idB, 10);
+					if (!Number.isNaN(numA) && !Number.isNaN(numB)) {
+						return numA - numB;
+					}
+					return idA.localeCompare(idB);
+				});
 			},
 			// 可转换的角色列表（排除当前角色）
 			availableRoles() {
@@ -2218,6 +2333,69 @@
 			userCardLetter() {
 				const n = this.userCardInfo.name;
 				return n && n.length ? n[0] : '管';
+			},
+			noticePageRangeText() {
+				return `1~${this.noticeTotalPages > 0 ? this.noticeTotalPages : '*'}`;
+			},
+			noticePageSizeOptions() {
+				return [10, 20, 30, 50];
+			},
+			noticePageSizeOptionsLabel() {
+				return this.noticePageSizeOptions.map((size) => `${size} / 页`);
+			},
+			noticePageSizePickerIndex() {
+				const idx = this.noticePageSizeOptions.indexOf(this.noticePageSize);
+				return idx >= 0 ? idx : 0;
+			},
+			noticePageSizeLabel() {
+				return `${this.noticePageSize} / 页`;
+			},
+			noticePaginationItems() {
+				const total = this.noticeTotalPages > 0 ? this.noticeTotalPages : 1;
+				const current = Math.min(Math.max(this.noticeCurrentPage || 1, 1), total);
+				const items = [];
+				const pushPage = (value) => {
+					if (items.length && items[items.length - 1].type === 'page' && items[items.length - 1].value === value) {
+						return;
+					}
+					items.push({
+						type: 'page',
+						value,
+						key: `page-${value}`
+					});
+				};
+				const pushEllipsis = (key) => {
+					items.push({
+						type: 'ellipsis',
+						key
+					});
+				};
+				if (total <= 7) {
+					for (let page = 1; page <= total; page += 1) {
+						pushPage(page);
+					}
+					return items;
+				}
+				pushPage(1);
+				let start = Math.max(2, current - 1);
+				let end = Math.min(total - 1, current + 1);
+				if (current <= 3) {
+					end = 4;
+				}
+				if (current >= total - 2) {
+					start = total - 3;
+				}
+				if (start > 2) {
+					pushEllipsis(`ellipsis-left-${current}`);
+				}
+				for (let page = start; page <= end; page += 1) {
+					pushPage(page);
+				}
+				if (end < total - 1) {
+					pushEllipsis(`ellipsis-right-${current}`);
+				}
+				pushPage(total);
+				return items;
 			},
 			/** 公告中心：筛选 + 行展示数据（对齐 announcement_center 列表态） */
 			noticeListRows() {
@@ -2336,6 +2514,20 @@
 				);
 				return o ? o.label : '全部角色';
 			},
+			/** 群组详情：学生列表按学号排序 */
+			sortedGroupStudents() {
+				const students = this.groupMembers?.students || [];
+				return [...students].sort((a, b) => {
+					const idA = String(a.student_id || a.account_id || a.member_id || '');
+					const idB = String(b.student_id || b.account_id || b.member_id || '');
+					const numA = parseInt(idA, 10);
+					const numB = parseInt(idB, 10);
+					if (!isNaN(numA) && !isNaN(numB)) {
+						return numA - numB;
+					}
+					return idA.localeCompare(idB);
+				});
+			},
 			/** 是否启用关键词以外的筛选（用于底部统计提示） */
 			groupRelationsHasNonSearchFilters() {
 				return (
@@ -2409,6 +2601,12 @@
 				if (val === 'notice' && (!this.groups || this.groups.length === 0)) {
 					this.loadGroupList();
 				}
+				if (val === 'notice') {
+					this.noticePageInput = '';
+					this.$nextTick(() => {
+						this.loadNoticesFromBackend({ page: 1 });
+					});
+				}
 				if (val === 'groupRelations') {
 					this.closeGroupRelationsDropdowns();
 					this.$nextTick(() => {
@@ -2447,6 +2645,13 @@
 				const next = !this.groupRelationsRoleDropdownOpen;
 				this.groupRelationsGroupDropdownOpen = false;
 				this.groupRelationsRoleDropdownOpen = next;
+			},
+			toggleAccessDirectorySort() {
+				this.accessDirectorySortAnimating = true;
+				this.accessDirectorySortMode = this.accessDirectorySortMode === 'time' ? 'studentId' : 'time';
+				setTimeout(() => {
+					this.accessDirectorySortAnimating = false;
+				}, 260);
 			},
 			selectGroupRelationsGroup(opt) {
 				if (opt) {
@@ -2494,6 +2699,14 @@
 				t = t.replace(/\.\d+Z?$/, '');
 				if (/^\d{4}-\d{2}-\d{2}/.test(t) && t.length > 19) return t.slice(0, 19);
 				return t;
+			},
+			parseDirectoryUserCreatedAt(v) {
+				if (v == null || v === '') return 0;
+				const s = String(v).trim();
+				if (!s) return 0;
+				const normalized = s.includes('T') ? s : s.replace(' ', 'T');
+				const ts = new Date(normalized).getTime();
+				return Number.isNaN(ts) ? 0 : ts;
 			},
 			resolveManagedUserType(user) {
 				const rawType = String(
@@ -2605,9 +2818,9 @@
 					bizId = String(raw.admin_id ?? raw.user_id ?? raw.adminId ?? username ?? sub ?? '').trim();
 				}
 				if (!bizId) bizId = username || (sub != null ? String(sub) : '');
-				const createdAtDisplay = this.formatDirectoryUserCreatedAt(
-					raw.created_at ?? raw.create_time ?? raw.createdTime
-				);
+				const createdAtRaw = raw.created_at ?? raw.create_time ?? raw.createdTime;
+				const createdAtDisplay = this.formatDirectoryUserCreatedAt(createdAtRaw);
+				const createdAtSortValue = this.parseDirectoryUserCreatedAt(createdAtRaw);
 				return {
 					sub,
 					backendUserId,
@@ -2616,7 +2829,8 @@
 					role,
 					username,
 					groupName: raw.group_name || raw.groupName || '',
-					createdAtDisplay
+					createdAtDisplay,
+					createdAtSortValue
 				};
 			},
 			/**
@@ -2676,7 +2890,7 @@
 			},
 			onSidebarHelp() {
 				uni.showToast({
-					title: '如需帮助请联系系统管理员',
+					title: '当前为论文管理系统v1.0版本',
 					icon: 'none'
 				});
 			},
@@ -4695,22 +4909,337 @@
 				}
 				return role;
 			},
+			normalizeNoticePageValue(raw, fallback = 1) {
+				const n = parseInt(String(raw ?? '').trim(), 10);
+				return Number.isFinite(n) && n > 0 ? n : fallback;
+			},
+			sanitizeNoticePageInputValue(raw) {
+				const digits = String(raw == null ? '' : raw)
+					.replace(/[^\d]/g, '')
+					.slice(0, 6);
+				if (!digits) return '';
+				return digits.replace(/^0+(?=\d)/, '');
+			},
+			onNoticePageInput(e) {
+				const next = this.sanitizeNoticePageInputValue(e?.detail?.value ?? e ?? '');
+				this.noticePageInput = next;
+			},
+			async goToNoticePage(page) {
+				const total = this.noticeTotalPages > 0 ? this.noticeTotalPages : 1;
+				const targetPage = Math.min(
+					Math.max(this.normalizeNoticePageValue(page, 1), 1),
+					total
+				);
+				if (targetPage === this.noticeCurrentPage && this.adminNotices.length) {
+					return;
+				}
+				this.noticePageInput = '';
+				const hasCache = this.loadNoticesFromStorage({
+					page: targetPage,
+					page_size: this.noticePageSize,
+					apply: true
+				});
+				await this.loadNoticesFromBackend({
+					page: targetPage,
+					page_size: this.noticePageSize,
+					silent: hasCache
+				});
+			},
+			async changeNoticePageByStep(step) {
+				if (!Number.isFinite(step) || step === 0) return;
+				const total = this.noticeTotalPages > 0 ? this.noticeTotalPages : 1;
+				const targetPage = Math.min(
+					Math.max((this.noticeCurrentPage || 1) + step, 1),
+					total
+				);
+				if (targetPage === this.noticeCurrentPage) {
+					return;
+				}
+				await this.goToNoticePage(targetPage);
+			},
+			async onNoticePageSizeChange(e) {
+				const idx = parseInt(String(e?.detail?.value ?? ''), 10);
+				if (!Number.isFinite(idx) || idx < 0 || idx >= this.noticePageSizeOptions.length) {
+					return;
+				}
+				const nextPageSize = this.noticePageSizeOptions[idx];
+				if (!Number.isFinite(nextPageSize) || nextPageSize === this.noticePageSize) {
+					return;
+				}
+				this.noticePageInput = '';
+				const hasCache = this.loadNoticesFromStorage({
+					page: 1,
+					page_size: nextPageSize,
+					apply: true
+				});
+				await this.loadNoticesFromBackend({
+					page: 1,
+					page_size: nextPageSize,
+					silent: hasCache
+				});
+			},
+			getNoticeCacheStorageKey() {
+				return 'systemNoticePageCache';
+			},
+			getNoticeCacheAdminId(explicitId = null) {
+				if (explicitId != null && explicitId !== '') return String(explicitId);
+				const sysAdmin = uni.getStorageSync('systemAdminInfo') || {};
+				const userInfo = uni.getStorageSync('userInfo') || {};
+				const rawId = sysAdmin.id ?? userInfo.id ?? userInfo.sub ?? 'admin';
+				return String(rawId);
+			},
+			getNoticePageCacheKey(adminId, page, pageSize) {
+				return `admin:${this.getNoticeCacheAdminId(adminId)}:page:${page}:size:${pageSize}`;
+			},
+			getNoticePageCacheStore() {
+				try {
+					const store = uni.getStorageSync(this.getNoticeCacheStorageKey());
+					if (
+						store &&
+						typeof store === 'object' &&
+						!Array.isArray(store) &&
+						store.pages &&
+						typeof store.pages === 'object'
+					) {
+						return store;
+					}
+				} catch (e) {
+					console.error('读取公告分页缓存失败:', e);
+				}
+				return {
+					version: 1,
+					pages: {},
+					meta: {}
+				};
+			},
+			readNoticePageCache(options = {}) {
+				const page = this.normalizeNoticePageValue(options.page, 1);
+				const pageSize = this.normalizeNoticePageValue(
+					options.page_size != null ? options.page_size : this.noticePageSize,
+					30
+				);
+				const adminId = this.getNoticeCacheAdminId(options.adminId);
+				const store = this.getNoticePageCacheStore();
+				const key = this.getNoticePageCacheKey(adminId, page, pageSize);
+				const entry = store.pages?.[key];
+				if (entry && Array.isArray(entry.items)) {
+					return {
+						...entry,
+						cacheSource: entry.cacheSource || 'server'
+					};
+				}
+				if (page === 1) {
+					const legacyList = uni.getStorageSync('systemNotices');
+					if (Array.isArray(legacyList) && legacyList.length) {
+						return {
+							page: 1,
+							page_size: pageSize,
+							total: store.meta?.total ?? legacyList.length,
+							total_pages: 0,
+							items: legacyList.filter((item) => this.isLikelyServerMessageId(item?.id)),
+							savedAt: 0,
+							cacheSource: 'legacy'
+						};
+					}
+				}
+				return null;
+			},
+			writeNoticePageCache(payload, adminId = null) {
+				const page = this.normalizeNoticePageValue(payload?.page, 1);
+				const pageSize = this.normalizeNoticePageValue(payload?.page_size, this.noticePageSize || 30);
+				const nextPayload = {
+					page,
+					page_size: pageSize,
+					total: Number.isFinite(parseInt(String(payload?.total ?? ''), 10))
+						? parseInt(String(payload.total), 10)
+						: 0,
+					total_pages: Number.isFinite(parseInt(String(payload?.total_pages ?? ''), 10))
+						? parseInt(String(payload.total_pages), 10)
+						: 0,
+					items: Array.isArray(payload?.items) ? payload.items : [],
+					savedAt: Date.now(),
+					cacheSource: 'server'
+				};
+				try {
+					const store = this.getNoticePageCacheStore();
+					const cacheAdminId = this.getNoticeCacheAdminId(adminId);
+					const key = this.getNoticePageCacheKey(cacheAdminId, page, pageSize);
+					store.version = 1;
+					if (!store.pages || typeof store.pages !== 'object') {
+						store.pages = {};
+					}
+					store.pages[key] = nextPayload;
+					const sortedEntries = Object.entries(store.pages)
+						.sort((a, b) => (b[1]?.savedAt || 0) - (a[1]?.savedAt || 0))
+						.slice(0, 12);
+					store.pages = Object.fromEntries(sortedEntries);
+					store.meta = {
+						adminId: cacheAdminId,
+						lastKey: key,
+						lastPage: page,
+						total: nextPayload.total,
+						total_pages: nextPayload.total_pages,
+						page_size: pageSize,
+						savedAt: nextPayload.savedAt
+					};
+					uni.setStorageSync(this.getNoticeCacheStorageKey(), store);
+					if (page === 1) {
+						uni.setStorageSync('systemNotices', nextPayload.items);
+					}
+				} catch (e) {
+					console.error('保存公告分页缓存失败:', e);
+				}
+			},
+			applyNoticePagePayload(payload = {}) {
+				const page = this.normalizeNoticePageValue(payload.page, 1);
+				const pageSize = this.normalizeNoticePageValue(
+					payload.page_size != null ? payload.page_size : this.noticePageSize,
+					30
+				);
+				const totalPagesRaw = parseInt(String(payload.total_pages ?? ''), 10);
+				const totalRaw = parseInt(String(payload.total ?? ''), 10);
+				const items = Array.isArray(payload.items)
+					? payload.items.filter((item) => item && this.isLikelyServerMessageId(item.id))
+					: [];
+				this.noticeCurrentPage = page;
+				this.noticePageSize = pageSize;
+				this.noticeTotalPages =
+					Number.isFinite(totalPagesRaw) && totalPagesRaw >= 0
+						? totalPagesRaw
+						: (items.length > 0 ? page : 0);
+				this.noticeTotalCount =
+					Number.isFinite(totalRaw) && totalRaw >= 0
+						? totalRaw
+						: items.length;
+				this.adminNotices = items;
+			},
+			mapNoticeQueryItem(item) {
+				const rawId = item.id ?? item.notification_id ?? item.message_id;
+				const numId = parseInt(String(rawId), 10);
+				const id = Number.isFinite(numId) && numId > 0 ? numId : null;
+				return {
+					id,
+					title: item.title,
+					content: item.content,
+					target_type: item.target_type || 'student',
+					target_user_id: item.target_user_id ?? item.user_id,
+					time: item.received_time || item.operation_time,
+					create_time: item.received_time || item.operation_time,
+					status: item.status,
+					username: item.username ?? item.target_username
+				};
+			},
+			buildNoticePagePayload(responseData, requestedPage, pageSize) {
+				const items = Array.isArray(responseData?.items) ? responseData.items : [];
+				const totalPagesRaw = parseInt(String(responseData?.total_pages ?? ''), 10);
+				const totalCountRaw = parseInt(String(responseData?.total ?? ''), 10);
+				const responsePageRaw = parseInt(String(responseData?.page ?? ''), 10);
+				const normalizedPage =
+					Number.isFinite(responsePageRaw) && responsePageRaw > 0
+						? responsePageRaw
+						: requestedPage;
+				const normalizedItems = items
+					.map((item) => this.mapNoticeQueryItem(item))
+					.filter((row) => row.id != null);
+				return {
+					page: normalizedPage,
+					page_size: pageSize,
+					total:
+						Number.isFinite(totalCountRaw) && totalCountRaw >= 0
+							? totalCountRaw
+							: normalizedItems.length,
+					total_pages:
+						Number.isFinite(totalPagesRaw) && totalPagesRaw >= 0
+							? totalPagesRaw
+							: (normalizedItems.length > 0 ? normalizedPage : 0),
+					items: normalizedItems
+				};
+			},
+			async queryNoticePage() {
+				const raw = this.sanitizeNoticePageInputValue(this.noticePageInput);
+				this.noticePageInput = raw;
+				if (!raw) {
+					const hasCache = this.loadNoticesFromStorage({ page: 1, apply: true });
+					await this.loadNoticesFromBackend({ page: 1, silent: hasCache });
+					return;
+				}
+				const page = parseInt(raw, 10);
+				if (!Number.isFinite(page) || page < 1) {
+					uni.showToast({
+						title: '请输入大于 0 的页码',
+						icon: 'none'
+					});
+					return;
+				}
+				if (this.noticeTotalPages > 0 && page > this.noticeTotalPages) {
+					uni.showToast({
+						title: `请输入 1~${this.noticeTotalPages} 页`,
+						icon: 'none'
+					});
+					return;
+				}
+				const hasCache = this.loadNoticesFromStorage({ page, apply: true });
+				await this.loadNoticesFromBackend({ page, silent: hasCache });
+			},
 			
 			async loadNoticesFromBackend(options = {}) {
 				const silent = options.silent === true;
+				const useCache = options.useCache !== false;
+				const forceRefresh = options.forceRefresh === true;
+				const requestedPage = this.normalizeNoticePageValue(
+					options.page != null ? options.page : this.noticeCurrentPage,
+					1
+				);
+				const pageSize = this.normalizeNoticePageValue(
+					options.page_size != null ? options.page_size : this.noticePageSize,
+					30
+				);
+				let adminInfo = options.adminInfo || null;
+				let adminId = this.getNoticeCacheAdminId();
+				let cacheShown = false;
+				let cacheEntry = null;
 				try {
-					if (!silent) {
+					adminInfo = adminInfo || await this.getOrCreateAdmin();
+					adminId = this.getNoticeCacheAdminId(adminInfo?.id);
+				} catch (e) {
+					console.warn('读取管理员信息失败，继续尝试使用公告缓存', e);
+				}
+				if (useCache) {
+					cacheEntry = this.readNoticePageCache({
+						page: requestedPage,
+						page_size: pageSize,
+						adminId
+					});
+					if (cacheEntry) {
+						this.applyNoticePagePayload(cacheEntry);
+						cacheShown = true;
+					}
+				}
+				const cacheAge =
+					cacheEntry && cacheEntry.savedAt ? Date.now() - cacheEntry.savedAt : Number.POSITIVE_INFINITY;
+				const isFreshServerCache =
+					cacheShown &&
+					cacheEntry &&
+					cacheEntry.cacheSource === 'server' &&
+					cacheAge < 60 * 1000;
+				const shouldUseFreshCacheOnly = isFreshServerCache && !forceRefresh;
+				const shouldShowLoading = !silent && !cacheShown;
+				try {
+					if (shouldUseFreshCacheOnly) {
+						return;
+					}
+					if (shouldShowLoading) {
 						uni.showLoading({ title: '加载中...' });
 					}
 					
-					// 获取管理员信息
-					const adminInfo = await this.getOrCreateAdmin();
+					adminInfo = adminInfo || await this.getOrCreateAdmin();
+					adminId = this.getNoticeCacheAdminId(adminInfo?.id);
 					
 					// 调用后端接口查询通知
 					const { queryNotifications } = await import('@/api/admin.js');
 					const res = await queryNotifications({
-						page: 1,
-						page_size: 50
+						page: requestedPage,
+						page_size: pageSize
 					}, adminInfo.id);
 					
 					console.log('公告列表响应:', res);
@@ -4721,63 +5250,101 @@
 						responseData = res.data;
 					}
 					
-					// 适配后端返回的数据格式（id 与 PUT /notifications/{id} 一致）
 					if (responseData.items && Array.isArray(responseData.items)) {
-						this.adminNotices = responseData.items
-							.map(item => {
-								const rawId = item.id ?? item.notification_id ?? item.message_id;
-								const numId = parseInt(String(rawId), 10);
-								const id = Number.isFinite(numId) && numId > 0 ? numId : null;
-								return {
-									id,
-									title: item.title,
-									content: item.content,
-									target_type: item.target_type || 'student',
-									target_user_id: item.target_user_id ?? item.user_id,
-									time: item.received_time || item.operation_time,
-									create_time: item.received_time || item.operation_time,
-									status: item.status,
-									username: item.username ?? item.target_username
-								};
-							})
-							.filter((row) => row.id != null);
-						// 同时保存到本地存储
-						this.saveNoticesToStorage();
+						const normalizedPayload = this.buildNoticePagePayload(
+							responseData,
+							requestedPage,
+							pageSize
+						);
+						if (
+							normalizedPayload.total_pages > 0 &&
+							normalizedPayload.items.length === 0 &&
+							normalizedPayload.page > normalizedPayload.total_pages
+						) {
+							await this.loadNoticesFromBackend({
+								page: normalizedPayload.total_pages,
+								page_size: pageSize,
+								silent: cacheShown || silent,
+								adminInfo,
+								useCache,
+								forceRefresh: true
+							});
+							return;
+						}
+						this.applyNoticePagePayload(normalizedPayload);
+						this.saveNoticesToStorage({
+							payload: normalizedPayload,
+							adminId
+						});
 						console.log('加载公告成功:', this.adminNotices.length, '条');
 					} else {
 						console.warn('从后端加载通知失败: 响应格式不正确', responseData);
-						// 失败后从本地存储加载
-						this.loadNoticesFromStorage();
+						if (!cacheShown) {
+							this.loadNoticesFromStorage({
+								page: requestedPage,
+								page_size: pageSize,
+								adminId,
+								apply: true
+							});
+						}
 					}
 				} catch (err) {
 					console.error('加载通知列表失败:', err);
-					// 失败后从本地存储加载
-					this.loadNoticesFromStorage();
+					if (!cacheShown) {
+						this.loadNoticesFromStorage({
+							page: requestedPage,
+							page_size: pageSize,
+							adminId,
+							apply: true
+						});
+					}
 				} finally {
-					if (!silent) {
+					if (shouldShowLoading) {
 						uni.hideLoading();
 					}
 				}
 			},
 			
-			loadNoticesFromStorage() {
+			loadNoticesFromStorage(options = {}) {
 				try {
-					const list = uni.getStorageSync('systemNotices');
-					if (Array.isArray(list)) {
-						this.adminNotices = list.filter((item) =>
-							this.isLikelyServerMessageId(item?.id)
-						);
+					const payload = this.readNoticePageCache(options);
+					if (!payload) return false;
+					if (options.apply !== false) {
+						this.applyNoticePagePayload(payload);
 					}
+					return true;
 				} catch (e) {
 					console.error('加载公告失败:', e);
+					return false;
 				}
 			},
-			saveNoticesToStorage() {
-				try {
-					uni.setStorageSync('systemNotices', this.adminNotices);
-				} catch (e) {
-					console.error('保存公告失败:', e);
+			saveNoticesToStorage(options = {}) {
+				const payload = options.payload || {
+					page: this.noticeCurrentPage,
+					page_size: this.noticePageSize,
+					total: this.noticeTotalCount,
+					total_pages: this.noticeTotalPages,
+					items: this.adminNotices
+				};
+				this.writeNoticePageCache(payload, options.adminId);
+			},
+			prefetchNoticeFirstPage() {
+				const cached = this.readNoticePageCache({
+					page: 1,
+					page_size: this.noticePageSize
+				});
+				const cacheAge =
+					cached && cached.savedAt ? Date.now() - cached.savedAt : Number.POSITIVE_INFINITY;
+				if (cacheAge < 60 * 1000) {
+					return;
 				}
+				setTimeout(() => {
+					this.loadNoticesFromBackend({
+						page: 1,
+						silent: true,
+						forceRefresh: true
+					});
+				}, 120);
 			},
 			startCreateNotice() {
 				this.editingNoticeIndex = -1;
@@ -4807,7 +5374,7 @@
 						title: '该公告无有效编号，请等待列表刷新后重试',
 						icon: 'none'
 					});
-					this.loadNoticesFromBackend();
+					this.loadNoticesFromBackend({ forceRefresh: true });
 					return;
 				}
 				this.editingNoticeIndex = index;
@@ -4831,7 +5398,7 @@
 				if (!item) return;
 				if (!this.isLikelyServerMessageId(item.id)) {
 					uni.showToast({ title: '无法删除：公告编号无效，请刷新列表', icon: 'none' });
-					this.loadNoticesFromBackend();
+					this.loadNoticesFromBackend({ forceRefresh: true });
 					return;
 				}
 				
@@ -4856,9 +5423,16 @@
 								if (result && typeof result.code === 'number' && result.code >= 400) {
 									throw new Error(result.message || '删除失败');
 								}
-								
-								this.adminNotices.splice(index, 1);
-								this.saveNoticesToStorage();
+								const nextPage =
+									this.noticeCurrentPage > 1 && this.adminNotices.length === 1
+										? this.noticeCurrentPage - 1
+										: this.noticeCurrentPage;
+								this.noticePageInput = nextPage > 1 ? String(nextPage) : '';
+								await this.loadNoticesFromBackend({
+									silent: true,
+									page: nextPage,
+									forceRefresh: true
+								});
 								uni.showToast({ title: '已删除', icon: 'success' });
 							} catch (err) {
 								console.error('删除公告失败:', err);
@@ -5018,7 +5592,7 @@
 					if (isEditing) {
 						if (!this.isLikelyServerMessageId(this.editingNoticeId)) {
 							uni.showToast({ title: '公告编号无效，请刷新列表后重试', icon: 'none' });
-							await this.loadNoticesFromBackend({ silent: true });
+							await this.loadNoticesFromBackend({ silent: true, forceRefresh: true });
 							return;
 						}
 						const noticeId = parseInt(String(this.editingNoticeId), 10);
@@ -5110,7 +5684,8 @@
 							});
 							
 							// 以服务端列表为准，避免用 Date.now() 占位导致编辑时报「通知不存在」
-							await this.loadNoticesFromBackend({ silent: true });
+							this.noticePageInput = '';
+							await this.loadNoticesFromBackend({ silent: true, page: 1, forceRefresh: true });
 							
 							this.showNoticeForm = false;
 							this.editingNoticeIndex = -1;
@@ -5517,10 +6092,11 @@
 			} catch (err) {
 				uni.hideLoading();
 				console.error('创建教师失败:', err);
-				// 根据错误信息判断是否为重复
 				const errMsg = err?.message || '';
 				if (errMsg.includes('已存在') || errMsg.includes('exist') || errMsg.includes('duplicate') || errMsg.includes('Conflict')) {
 					uni.showToast({ title: '该工号已存在', icon: 'none' });
+				} else if (errMsg.includes('教师username第一个字符必须') || errMsg.includes("教师 username 第一个字符必须") || (errMsg.includes('第一个字符必须') && errMsg.includes("'t' 或 'T'"))) {
+					uni.showToast({ title: "教师工号的第一个字符必须为 't' 或 'T'", icon: 'none' });
 				} else {
 					uni.showToast({ title: errMsg || '创建失败', icon: 'none' });
 				}
@@ -5554,10 +6130,11 @@
 			} catch (err) {
 				uni.hideLoading();
 				console.error('创建管理员失败:', err);
-				// 根据错误信息判断是否为重复
 				const errMsg = err?.message || '';
 				if (errMsg.includes('已存在') || errMsg.includes('exist') || errMsg.includes('duplicate') || errMsg.includes('Conflict')) {
 					uni.showToast({ title: '该账号已存在', icon: 'none' });
+				} else if (errMsg.includes('管理员username第一个字符必须') || errMsg.includes("管理员 username 第一个字符必须") || (errMsg.includes('第一个字符必须') && errMsg.includes("'a' 或 'A'"))) {
+					uni.showToast({ title: "管理员账号的第一个字符必须为 'a' 或 'A'", icon: 'none' });
 				} else {
 					uni.showToast({ title: errMsg || '创建失败', icon: 'none' });
 				}
@@ -5568,8 +6145,12 @@
 	onLoad() {
 		if (this.checkAdminAuth()) {
 			this.initAdminInfo();
-			this.loadNoticesFromBackend(); // 从后端加载通知列表
 			this.loadGroupList();
+			if (this.currentTab === 'notice') {
+				this.loadNoticesFromBackend({ page: 1 });
+			} else {
+				this.prefetchNoticeFirstPage();
+			}
 		}
 	}
 }
@@ -6409,31 +6990,39 @@
 	.group-ops-page {
 		display: flex;
 		flex-direction: column;
-		gap: 40rpx;
+		gap: 32rpx;
 	}
 	.group-ops-hero {
 		display: flex;
 		justify-content: space-between;
-		align-items: flex-end;
+		align-items: flex-start;
 		flex-wrap: wrap;
 		gap: 24rpx;
+		padding: 32rpx 32rpx 28rpx;
+		background: #fff;
+		border-radius: var(--ac-radius-lg, 24rpx);
+		box-shadow: 0 20rpx 50rpx rgba(30, 58, 138, 0.06);
+		border: 1rpx solid rgba(148, 163, 184, 0.22);
 	}
 	.group-ops-hero-text {
 		flex: 1;
 		min-width: 280rpx;
+		display: flex;
+		flex-direction: column;
+		gap: 8rpx;
 	}
 	.group-ops-kicker {
-		font-size: 22rpx;
-		color: #64748b;
+		font-size: 20rpx;
+		color: #94a3b8;
 		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		font-weight: 700;
+		letter-spacing: 0.14em;
+		font-weight: 800;
 		display: block;
-		margin-bottom: 8rpx;
+		margin-bottom: 0;
 	}
 	.group-ops-title {
 		font-family: 'Manrope', 'Noto Sans SC', sans-serif;
-		font-size: 48rpx;
+		font-size: 36rpx;
 		font-weight: 800;
 		color: #0f172a;
 		display: block;
@@ -6442,10 +7031,10 @@
 	.group-ops-desc {
 		font-size: 26rpx;
 		color: #64748b;
-		margin-top: 12rpx;
+		margin-top: 0;
 		line-height: 1.5;
 		display: block;
-		max-width: 620px;
+		max-width: 780rpx;
 	}
 	.group-ops-create-btn {
 		display: flex;
@@ -6457,51 +7046,128 @@
 		background: #fff;
 		color: #005bbf;
 		font-size: 28rpx;
-		font-weight: 600;
+		font-weight: 700;
 	}
 	.group-ops-create-ic {
 		font-size: 36rpx;
 	}
+	.group-ops-search-row .group-ops-create-btn {
+		flex-shrink: 0;
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		justify-content: center;
+		gap: 10rpx;
+		padding: 0 32rpx;
+		height: 104rpx;
+		min-height: 104rpx;
+		max-height: 104rpx;
+		box-sizing: border-box;
+		border: none;
+		border-radius: 14rpx;
+		background: linear-gradient(135deg, #005bbf 0%, #1a73e8 100%);
+		color: #fff;
+		font-size: 28rpx;
+		font-weight: 700;
+		line-height: 1;
+		box-shadow: 0 8rpx 22rpx rgba(0, 91, 191, 0.28);
+		transition: transform 0.2s ease, box-shadow 0.2s ease;
+		white-space: nowrap;
+	}
+	.group-ops-search-row .group-ops-create-btn text:last-child {
+		display: none;
+	}
+	.group-ops-search-row .group-ops-create-btn::after {
+		content: '创建群组';
+		font-size: 28rpx;
+		font-weight: 600;
+		line-height: 1;
+	}
+	.group-ops-search-row .group-ops-create-btn::after {
+		font-weight: 700;
+	}
+	.group-ops-search-row .group-ops-create-btn .group-ops-create-ic {
+		font-size: 32rpx;
+		color: inherit;
+	}
+	.group-ops-search-row .group-ops-create-btn:active {
+		transform: scale(0.98);
+	}
 	.group-ops-bento {
 		display: flex;
 		flex-direction: column;
-		gap: 32rpx;
+		gap: 28rpx;
 		align-items: stretch;
 	}
 	.group-ops-panel-import {
 		flex: 1;
 		min-width: 0;
+		display: flex;
+		flex-direction: column;
 		background: #fff;
 		border-radius: var(--ac-radius-lg, 24rpx);
-		padding: 48rpx 40rpx;
-		border: 1rpx solid rgba(148, 163, 184, 0.28);
-		box-shadow: var(--ac-shadow-card, 0 8rpx 28rpx rgba(15, 23, 42, 0.08));
+		padding: 46rpx 34rpx 50rpx;
+		border: none;
+		box-shadow: 0 20rpx 50rpx rgba(30, 58, 138, 0.06);
+		box-sizing: border-box;
 	}
 	.group-ops-panel-head {
-		margin-bottom: 28rpx;
+		display: flex;
+		flex-direction: column;
+		gap: 14rpx;
+		margin-bottom: 38rpx;
+	}
+	.group-ops-panel-head-row {
+		display: flex;
+		align-items: center;
+		gap: 20rpx;
+	}
+	.group-ops-panel-icon {
+		width: 72rpx;
+		height: 72rpx;
+		border-radius: 16rpx;
+		background: rgba(216, 226, 255, 0.9);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: #005bbf;
+		flex-shrink: 0;
+	}
+	.group-ops-panel-icon-ms {
+		font-size: 40rpx;
+		font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+	}
+	.group-ops-panel-head-copy {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 4rpx;
 	}
 	.group-ops-panel-kicker {
-		font-size: 22rpx;
-		color: #006a5f;
-		font-weight: 700;
+		font-size: 18rpx;
+		color: #94a3b8;
+		font-weight: 800;
 		text-transform: uppercase;
-		letter-spacing: 0.06em;
+		letter-spacing: 0.1em;
 		display: block;
-		margin-bottom: 8rpx;
+		line-height: 1.2;
+		margin-bottom: 0;
 	}
 	.group-ops-panel-title {
-		font-size: 36rpx;
+		font-size: 32rpx;
 		font-weight: 800;
 		color: #0f172a;
 		display: block;
 		font-family: 'Manrope', 'Noto Sans SC', sans-serif;
+		line-height: 1.3;
 	}
 	.group-ops-panel-desc {
 		font-size: 24rpx;
-		color: #64748b;
-		margin-top: 10rpx;
+		color: #94a3b8;
+		margin-top: 0;
 		display: block;
-		line-height: 1.45;
+		line-height: 1.5;
 	}
 	.group-ops-import-inner {
 		margin-top: 0;
@@ -6509,48 +7175,70 @@
 		background: transparent;
 		border: none;
 		box-shadow: none;
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		gap: 28rpx;
 	}
 	.group-ops-panel-download {
 		flex: 1;
 		min-width: 0;
+		display: flex;
+		flex-direction: column;
 	}
 	.group-ops-download-card {
-		background: linear-gradient(145deg, #1a73e8 0%, #005bbf 100%);
-		padding: 48rpx 36rpx;
+		background: #fff;
+		padding: 42rpx 30rpx 38rpx;
 		border-radius: var(--ac-radius-lg, 24rpx);
-		box-shadow: 0 16rpx 48rpx rgba(0, 91, 191, 0.22);
+		box-shadow: 0 20rpx 50rpx rgba(30, 58, 138, 0.06);
 		position: relative;
-		min-height: 100%;
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
+		gap: 28rpx;
+		border-left: 8rpx solid #005bbf;
+		box-sizing: border-box;
+	}
+	.group-ops-download-head {
+		display: flex;
+		align-items: flex-start;
+		gap: 22rpx;
 	}
 	.group-ops-download-icon-wrap {
-		width: 96rpx;
-		height: 96rpx;
-		border-radius: 50%;
-		background: rgba(255, 255, 255, 0.18);
+		width: 64rpx;
+		height: 64rpx;
+		border-radius: 16rpx;
+		background: rgba(0, 91, 191, 0.1);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		margin-bottom: 24rpx;
+		margin-bottom: 0;
+		flex-shrink: 0;
+	}
+	.group-ops-download-head-text {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 12rpx;
 	}
 	.group-ops-download-ms {
-		font-size: 52rpx;
-		color: #fff;
+		font-size: 36rpx;
+		color: #005bbf;
 	}
 	.group-ops-download-title {
-		font-size: 34rpx;
+		font-size: 30rpx;
 		font-weight: 800;
-		color: #fff;
+		color: #0f172a;
 		display: block;
 		font-family: 'Manrope', 'Noto Sans SC', sans-serif;
+		line-height: 1.3;
 	}
 	.group-ops-download-desc {
 		font-size: 24rpx;
-		color: rgba(255, 255, 255, 0.88);
-		margin-top: 12rpx;
-		margin-bottom: 8rpx;
+		color: #64748b;
+		margin-top: 0;
+		margin-bottom: 0;
 		display: block;
 		line-height: 1.45;
 	}
@@ -6558,47 +7246,85 @@
 		background: transparent !important;
 		box-shadow: none !important;
 		padding: 0 !important;
-		margin-top: 16rpx;
+		margin-top: 0;
 		flex: 1;
 		display: flex;
 		flex-direction: column;
+		gap: 28rpx;
+		box-sizing: border-box;
 	}
 	.group-ops-download-inner .filter-label,
 	.group-ops-download-inner .option-fixed-tip {
-		color: rgba(255, 255, 255, 0.92);
+		color: #475569;
 	}
 	.group-ops-download-inner .download-name-hint {
-		color: rgba(255, 255, 255, 0.72);
+		color: #64748b;
+	}
+	.group-ops-download-inner .download-filters {
+		display: flex;
+		flex-direction: column;
+		gap: 0;
+		margin-bottom: 0;
+	}
+	.group-ops-download-inner .filter-item {
+		margin-bottom: 0;
+		gap: 16rpx;
+	}
+	.group-ops-download-inner .filter-item-column .filter-label {
+		margin-bottom: 0;
+	}
+	.group-ops-download-inner .filter-input-row {
+		gap: 18rpx;
 	}
 	/* 预计下载：浅底 + 深色字，避免白字叠在 #f5f5f5 上无法辨认 */
 	.group-ops-download-inner .download-preview {
-		margin-top: 12rpx;
-		margin-bottom: 12rpx;
-		padding: 22rpx 24rpx;
-		background: rgba(255, 255, 255, 0.97);
-		border-radius: 14rpx;
-		border: 1rpx solid rgba(255, 255, 255, 0.45);
-		box-shadow: 0 4rpx 16rpx rgba(0, 40, 120, 0.12);
+		margin-top: 0;
+		margin-bottom: 0;
+		padding: 36rpx 26rpx;
+		background: #f8fafc;
+		border-radius: 16rpx;
+		border: 1rpx dashed rgba(148, 163, 184, 0.45);
+		box-shadow: none;
 	}
 	.group-ops-download-inner .download-preview .preview-title {
 		color: #0f172a;
-		font-weight: 600;
+		font-weight: 700;
+		font-size: 24rpx;
 		margin-bottom: 0;
+		line-height: 1.55;
 	}
 	.group-ops-download-inner .download-options {
-		margin-top: 8rpx;
+		margin-top: 0;
+		margin-bottom: 0;
+		padding: 20rpx 20rpx;
+		background: #eef6ff;
+		border-radius: 14rpx;
 	}
 	.group-ops-download-start {
 		margin-top: auto;
-		background: #fff !important;
-		color: #005bbf !important;
+		min-height: 104rpx;
+		padding: 0 28rpx;
+		background: linear-gradient(135deg, #005bbf 0%, #1a73e8 100%) !important;
+		color: #fff !important;
 		font-weight: 700;
 		border: none;
+		border-radius: 14rpx;
+		box-shadow: 0 8rpx 22rpx rgba(0, 91, 191, 0.22);
+		font-size: 26rpx;
 	}
 	.group-ops-download-inner .download-preview-count-btn {
-		background: rgba(255, 255, 255, 0.22);
-		color: #fff;
-		border: 1rpx solid rgba(255, 255, 255, 0.35);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(0, 91, 191, 0.08);
+		color: #005bbf;
+		border: none;
+		box-shadow: none;
+		min-height: 104rpx;
+		padding: 0 32rpx;
+		border-radius: 14rpx;
+		font-size: 26rpx;
+		font-weight: 700;
 	}
 	.group-ops-list-section {
 		margin-top: 8rpx;
@@ -6619,17 +7345,292 @@
 		margin-top: 8rpx;
 		display: block;
 	}
-	@media (min-width: 768px) {
+	.group-ops-search-layout {
+		display: flex;
+		align-items: stretch;
+		gap: 16rpx;
+		width: 100%;
+		max-width: 100%;
+		margin-bottom: 28rpx;
+	}
+	.group-ops-search-layout > .group-ops-search-bar {
+		flex: 1;
+		min-width: 0;
+		margin-bottom: 0;
+	}
+	.group-ops-search-row > .group-ops-create-btn {
+		display: none !important;
+	}
+	.group-ops-create-btn-outside {
+		flex: 0 0 auto;
+		align-self: center;
+		white-space: nowrap;
+	}
+	.group-ops-create-btn-outside .group-ops-create-ic {
+		font-size: 32rpx;
+		color: inherit;
+	}
+	.group-ops-import-inner .import-tips {
+		margin-bottom: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 12rpx;
+		padding: 24rpx 24rpx;
+		background: #f3f4f5;
+		border-radius: 16rpx;
+	}
+	.group-ops-import-inner .tip-title {
+		margin-bottom: 2rpx;
+		font-size: 24rpx;
+		font-weight: 700;
+		color: #475569;
+	}
+	.group-ops-import-inner .tip-item {
+		position: relative;
+		padding-left: 18rpx;
+		margin-bottom: 0;
+		font-size: 22rpx;
+		color: #64748b;
+		line-height: 1.5;
+	}
+	.group-ops-import-inner .tip-item::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 14rpx;
+		width: 8rpx;
+		height: 8rpx;
+		border-radius: 50%;
+		background: #005bbf;
+		opacity: 0.55;
+	}
+	.group-ops-import-inner .import-actions {
+		display: flex;
+		flex-direction: column;
+		gap: 18rpx;
+		justify-content: flex-start;
+		margin-bottom: 0;
+	}
+	.group-ops-import-inner .upload-file-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 100%;
+		margin: 0;
+		padding: 0 28rpx;
+		min-height: 104rpx;
+		border-radius: 14rpx;
+		font-size: 26rpx;
+		font-weight: 700;
+		background: rgba(0, 91, 191, 0.08);
+		color: #005bbf;
+		border: none;
+		box-shadow: none;
+	}
+	.group-ops-import-inner .file-info {
+		margin-bottom: 0;
+		padding: 20rpx 20rpx;
+		background: rgba(0, 134, 120, 0.06);
+		border-radius: 14rpx;
+		border: 1rpx solid rgba(0, 134, 120, 0.15);
+		gap: 14rpx;
+	}
+	.group-ops-import-inner .file-info-content {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 4rpx;
+	}
+	.group-ops-import-inner .file-name {
+		margin-right: 0;
+		font-size: 24rpx;
+		font-weight: 600;
+		color: #0f172a;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.group-ops-import-inner .file-size {
+		margin-right: 0;
+		font-size: 20rpx;
+		color: #64748b;
+	}
+	.group-ops-import-inner .remove-file-btn {
+		padding: 8rpx 12rpx;
+		background: transparent;
+		color: #ba1a1a;
+		border-radius: 12rpx;
+		font-size: 24rpx;
+		font-weight: 600;
+	}
+	.group-ops-import-inner .submit-import-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 104rpx;
+		padding: 0 28rpx;
+		border-radius: 14rpx;
+		font-size: 26rpx;
+		font-weight: 700;
+		background: linear-gradient(135deg, #005bbf 0%, #1a73e8 100%);
+		color: #fff;
+		border: none;
+		box-shadow: 0 8rpx 22rpx rgba(0, 91, 191, 0.22);
+	}
+	.group-ops-import-inner .submit-import-btn[disabled] {
+		background: #dbeafe;
+		color: rgba(0, 91, 191, 0.45);
+		box-shadow: none;
+	}
+	.group-ops-import-inner .import-progress {
+		margin-top: 0;
+		padding: 24rpx 24rpx;
+		background: #f8fafc;
+		border-radius: 16rpx;
+		border: 1rpx solid rgba(226, 232, 240, 0.95);
+	}
+	.group-ops-import-inner .progress-text {
+		font-size: 24rpx;
+		color: #475569;
+		margin-bottom: 12rpx;
+	}
+	.group-ops-import-inner .progress-details {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 12rpx 20rpx;
+		margin-top: 16rpx;
+	}
+	.group-ops-import-inner .detail-item {
+		font-size: 22rpx;
+		color: #64748b;
+		line-height: 1.5;
+	}
+	.group-ops-import-inner .import-result {
+		margin-top: 36rpx;
+		padding: 32rpx 0 0;
+		background: transparent;
+		border-radius: 0;
+		border: none;
+		border-top: 1rpx solid rgba(148, 163, 184, 0.28);
+	}
+	.group-ops-import-inner .import-result--failed {
+		background: transparent;
+		border-top-color: rgba(186, 26, 26, 0.18);
+	}
+	.group-ops-import-inner .import-result .result-header {
+		margin-bottom: 20rpx;
+	}
+	.group-ops-import-inner .import-result .result-title {
+		font-size: 28rpx;
+		font-weight: 700;
+		color: #0f172a;
+		line-height: 1.4;
+	}
+	.group-ops-import-inner .import-result--failed .result-title {
+		color: #b91c1c;
+	}
+	.group-ops-import-inner .import-result .result-content {
+		font-size: 24rpx;
+		color: #64748b;
+	}
+	.group-ops-import-inner .import-result .result-summary,
+	.group-ops-import-inner .import-result .result-success,
+	.group-ops-import-inner .import-result .result-failed,
+	.group-ops-import-inner .import-result .result-skipped {
+		margin-top: 10rpx;
+		line-height: 1.5;
+	}
+	.group-ops-import-inner .import-result .error-list {
+		margin-top: 18rpx;
+		padding: 16rpx 18rpx 10rpx;
+		background: #fff;
+		border-radius: 12rpx;
+		border-top: none;
+		border: 1rpx solid rgba(186, 26, 26, 0.15);
+	}
+	.group-ops-import-inner .import-result .error-title {
+		font-size: 22rpx;
+		font-weight: 700;
+		color: #b91c1c;
+		margin-bottom: 10rpx;
+	}
+	.group-ops-import-inner .import-result .error-item {
+		font-size: 22rpx;
+		color: #64748b;
+		line-height: 1.5;
+		margin-bottom: 6rpx;
+	}
+	.group-ops-import-inner .import-result .close-result-btn {
+		width: 48rpx;
+		height: 48rpx;
+		line-height: 48rpx;
+		text-align: center;
+		font-size: 36rpx;
+		color: #94a3b8;
+		border-radius: 12rpx;
+		padding: 0;
+	}
+	.group-ops-import-inner .import-result .close-result-btn:active {
+		background: rgba(148, 163, 184, 0.15);
+	}
+	.group-ops-download-inner .download-group-name-input {
+		min-height: 104rpx;
+		height: 104rpx;
+		padding: 0 28rpx;
+		border: none;
+		border-radius: 14rpx;
+		background: #f3f4f5;
+		font-size: 26rpx;
+		color: #0f172a;
+	}
+	.group-ops-download-inner .filter-label {
+		font-size: 24rpx;
+		font-weight: 700;
+	}
+	.group-ops-download-inner .option-fixed-tip {
+		font-size: 22rpx;
+		font-weight: 700;
+		color: #005bbf;
+	}
+	@media (min-width: 1024px) {
 		.group-ops-bento {
-			flex-direction: row;
-			align-items: stretch;
+			display: grid;
+			grid-template-columns: minmax(0, 2fr) minmax(280rpx, 1fr);
+			gap: 32rpx;
+		}
+		.group-ops-bento > .group-ops-panel-import,
+		.group-ops-bento > .group-ops-download-card {
+			align-self: stretch;
+			width: 100%;
+			min-width: 0;
+			height: 100%;
+		}
+		.group-ops-download-card {
+			min-width: 280rpx;
+			max-width: 100%;
+			min-height: 860rpx;
 		}
 		.group-ops-panel-import {
-			flex: 1.85;
+			min-height: 860rpx;
 		}
-		.group-ops-panel-download {
-			flex: 1;
-			max-width: 42%;
+	}
+	@media (max-width: 639px) {
+		.group-ops-hero {
+			padding: 28rpx 24rpx 24rpx;
+		}
+		.group-ops-title {
+			font-size: 32rpx;
+		}
+		.group-ops-create-btn,
+		.group-ops-import-inner .upload-file-btn,
+		.group-ops-import-inner .submit-import-btn,
+		.group-ops-download-start,
+		.group-ops-download-inner .download-preview-count-btn {
+			width: 100%;
+		}
+		.group-ops-download-inner .filter-input-row {
+			flex-direction: column;
 		}
 	}
 	
@@ -6673,7 +7674,7 @@
 		flex-direction: column;
 		align-items: stretch;
 		gap: 14rpx;
-		margin-bottom: 28rpx;
+		margin-bottom: 0;
 		padding: 24rpx 26rpx 26rpx;
 		background: #fff;
 		border-radius: var(--ac-radius-lg, 24rpx);
@@ -6757,6 +7758,9 @@
 		transform: scale(0.98);
 	}
 	@media (max-width: 640px) {
+		.group-ops-search-layout {
+			flex-direction: column;
+		}
 		.group-ops-search-row {
 			flex-wrap: wrap;
 			align-items: stretch;
@@ -6774,6 +7778,9 @@
 			height: 96rpx;
 			min-height: 96rpx;
 			max-height: 96rpx;
+		}
+		.group-ops-create-btn-outside {
+			width: 100%;
 		}
 	}
 	
@@ -7543,6 +8550,196 @@
 		color: #0f172a;
 	}
 
+	.notice-center-archive-actions {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 16rpx;
+	}
+
+	.notice-center-page-query {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 12rpx;
+		padding: 8rpx 10rpx;
+		border-radius: 16rpx;
+		background: #eef2f7;
+	}
+
+	.notice-center-page-input {
+		width: 180rpx;
+		height: 72rpx;
+		padding: 0 24rpx;
+		border-radius: 12rpx;
+		background: #fff;
+		border: 1rpx solid rgba(148, 163, 184, 0.35);
+		font-size: 24rpx;
+		color: #0f172a;
+		box-sizing: border-box;
+	}
+
+	.notice-center-page-submit {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8rpx;
+		min-width: 140rpx;
+		height: 72rpx;
+		padding: 0 24rpx;
+		border-radius: 12rpx;
+		background: linear-gradient(135deg, #005bbf 0%, #1a73e8 100%);
+		color: #fff;
+		font-size: 24rpx;
+		font-weight: 700;
+		box-shadow: 0 10rpx 24rpx rgba(0, 91, 191, 0.18);
+		transition: opacity 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+	}
+
+	.notice-center-page-submit:hover {
+		filter: brightness(1.08) saturate(1.04);
+		transform: translateY(-2rpx);
+		box-shadow: 0 16rpx 34rpx rgba(0, 91, 191, 0.24);
+	}
+
+	.notice-center-page-submit:active {
+		opacity: 0.88;
+		filter: brightness(0.92);
+		transform: translateY(3rpx) scale(0.95);
+		box-shadow: 0 4rpx 10rpx rgba(0, 91, 191, 0.16);
+	}
+
+	.notice-center-page-submit-ic {
+		font-size: 28rpx;
+		line-height: 1;
+	}
+
+	.notice-center-page-pager {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 10rpx;
+		flex: 1 1 auto;
+		min-width: 0;
+		max-width: 100%;
+	}
+
+	.notice-center-page-total {
+		font-family: 'Manrope', 'Noto Sans SC', sans-serif;
+		font-size: 24rpx;
+		font-weight: 700;
+		color: #334155;
+		white-space: nowrap;
+		margin-right: 4rpx;
+	}
+
+	.notice-center-page-nav {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 72rpx;
+		height: 72rpx;
+		padding: 0 18rpx;
+		border-radius: 12rpx;
+		background: #ffffff;
+		border: 1rpx solid transparent;
+		color: #334155;
+		font-size: 24rpx;
+		font-weight: 600;
+		line-height: 1;
+		box-sizing: border-box;
+		transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, color 0.16s ease, background 0.16s ease;
+	}
+
+	.notice-center-page-nav:not(.notice-center-page-nav--active):not(.notice-center-page-nav--ellipsis):not(.notice-center-page-nav--disabled):hover {
+		border-color: rgba(0, 91, 191, 0.16);
+		color: #005bbf;
+		box-shadow: 0 6rpx 16rpx rgba(15, 23, 42, 0.06);
+	}
+
+	.notice-center-page-nav:active {
+		transform: scale(0.97);
+	}
+
+	.notice-center-page-nav--icon {
+		min-width: 64rpx;
+		padding: 0 12rpx;
+	}
+
+	.notice-center-page-nav-ic {
+		font-size: 30rpx;
+		line-height: 1;
+	}
+
+	.notice-center-page-nav--active {
+		color: #005bbf;
+		border-color: rgba(0, 91, 191, 0.9);
+		box-shadow: 0 8rpx 20rpx rgba(0, 91, 191, 0.12);
+	}
+
+	.notice-center-page-nav--ellipsis {
+		min-width: 48rpx;
+		padding: 0 8rpx;
+		background: transparent;
+		border-color: transparent;
+		color: #94a3b8;
+		box-shadow: none;
+	}
+
+	.notice-center-page-nav--ellipsis:active {
+		transform: none;
+	}
+
+	.notice-center-page-nav-dots {
+		font-family: 'Manrope', 'Noto Sans SC', sans-serif;
+		font-size: 28rpx;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+	}
+
+	.notice-center-page-nav--disabled {
+		opacity: 0.42;
+		pointer-events: none;
+		box-shadow: none;
+	}
+
+	.notice-center-page-size-picker {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8rpx;
+		height: 72rpx;
+		padding: 0 18rpx;
+		border-radius: 12rpx;
+		background: #ffffff;
+		border: 1rpx solid rgba(148, 163, 184, 0.35);
+		font-size: 24rpx;
+		font-weight: 600;
+		color: #334155;
+		box-sizing: border-box;
+		white-space: nowrap;
+	}
+
+	.notice-center-page-size-picker:hover {
+		border-color: rgba(0, 91, 191, 0.3);
+		box-shadow: 0 6rpx 16rpx rgba(15, 23, 42, 0.05);
+	}
+
+	.notice-center-page-size-ic {
+		font-size: 24rpx;
+		line-height: 1;
+		color: #94a3b8;
+	}
+
+	.notice-center-page-range {
+		font-family: 'Manrope', 'Noto Sans SC', sans-serif;
+		font-size: 24rpx;
+		font-weight: 700;
+		color: #475569;
+		letter-spacing: 0.04em;
+		white-space: nowrap;
+	}
+
 	.notice-center-segment {
 		display: flex;
 		align-items: center;
@@ -7565,6 +8762,29 @@
 		background: #fff;
 		color: #005bbf;
 		box-shadow: 0 4rpx 14rpx rgba(15, 23, 42, 0.06);
+	}
+
+	@media screen and (max-width: 639px) {
+		.notice-center-archive-actions,
+		.notice-center-page-query,
+		.notice-center-segment {
+			width: 100%;
+		}
+
+		.notice-center-page-input,
+		.notice-center-page-submit {
+			flex: 1 1 0;
+			width: auto;
+		}
+
+		.notice-center-page-pager,
+		.notice-center-page-total {
+			width: 100%;
+		}
+
+		.notice-center-page-range {
+			width: 100%;
+		}
 	}
 
 	.notice-center-list {
@@ -8899,6 +10119,7 @@
 	}
 
 	.access-dir-search {
+		flex: 1;
 		display: flex;
 		align-items: center;
 		gap: 12rpx;
@@ -8906,32 +10127,57 @@
 		padding: 0 20rpx;
 		border-radius: 14rpx;
 		background: #e7e8e9;
+		transition: flex-basis 0.24s ease, transform 0.24s ease, box-shadow 0.24s ease;
 	}
 
-	.access-dir-search-ic {
-		font-size: 34rpx;
-		color: #94a3b8;
-	}
-
-	.access-dir-search-input {
-		flex: 1;
-		min-width: 0;
-		height: 80rpx;
-		font-size: 26rpx;
-		background: transparent;
-		border: none;
-	}
-
+	.access-dir-sort-btn,
 	.access-dir-search-btn {
 		height: 80rpx;
-		padding: 0 36rpx;
 		border-radius: 14rpx;
 		font-size: 26rpx;
 		font-weight: 700;
+		border: none;
+		transition: transform 0.22s ease, opacity 0.22s ease, background 0.22s ease, box-shadow 0.22s ease;
+	}
+
+	.access-dir-sort-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 10rpx;
+		padding: 0 28rpx;
+		color: #0f172a;
+		background: #e2e8f0;
+		box-shadow: 0 6rpx 16rpx rgba(15, 23, 42, 0.08);
+	}
+
+	.access-dir-sort-btn-ic {
+		font-size: 30rpx;
+	}
+
+	.access-dir-search-btn {
+		padding: 0 36rpx;
 		color: #fff;
 		background: linear-gradient(135deg, #005bbf 0%, #1a73e8 100%);
-		border: none;
 		box-shadow: 0 8rpx 20rpx rgba(0, 91, 191, 0.2);
+	}
+
+	.access-dir-sort-btn:active,
+	.access-dir-search-btn:active {
+		transform: translateY(1rpx) scale(0.985);
+	}
+
+	.access-user-rows {
+		transition: opacity 0.24s ease, transform 0.24s ease;
+	}
+
+	.access-user-row {
+		transition: transform 0.24s ease, opacity 0.24s ease, box-shadow 0.24s ease;
+	}
+
+	.access-user-row--sorting {
+		opacity: 0.7;
+		transform: translateY(6rpx) scale(0.995);
 	}
 
 	.access-table-head {
