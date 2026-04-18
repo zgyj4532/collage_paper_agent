@@ -554,7 +554,6 @@
                 <text class="ai-agent-task-line">任务 ID：{{ agentAuditTaskId ?? '—' }}</text>
                 <text class="ai-agent-task-line">状态：{{ agentTaskStatusDisplay }}</text>
                 <text v-if="agentTaskProgress != null" class="ai-agent-task-line">进度：{{ agentTaskProgress }}%</text>
-                <text v-if="agentTaskStage" class="ai-agent-task-line">阶段：{{ agentTaskStage }}</text>
               </view>
               <view v-if="agentReportPayload" class="ai-agent-report">
                 <text class="ai-agent-report-title">审查结果</text>
@@ -2540,16 +2539,20 @@
 				const dy = Number(extraYOffset);
 				const yOff = Number.isFinite(dy) ? dy : 0;
 				
+				// 考虑页面缩放比例，将视口坐标转换为实际文档坐标
+				const scale = (this.zoomLevel || 100) / 100;
 				const areaRect = scrollContainer.getBoundingClientRect();
 				const elRect = targetEl.getBoundingClientRect();
-				const delta = elRect.top - areaRect.top;
+				const delta = (elRect.top - areaRect.top) / scale;
 				const nextTop = Math.max(0, scrollContainer.scrollTop + delta + yOff - 96);
 				const beforeTop = scrollContainer.scrollTop;
 				const distance = Math.abs(nextTop - beforeTop);
 				
 				this.agentLocateLog('scrollPreviewToRect', {
 					目标标签: targetEl.tagName,
-					delta视口差: Math.round(delta),
+					缩放比例: scale,
+					delta视口差: Math.round(elRect.top - areaRect.top),
+					delta换算后: Math.round(delta),
 					yOff,
 					计算nextTop: Math.round(nextTop),
 					scrollTop变更前: Math.round(beforeTop),
@@ -2612,8 +2615,11 @@
 				}
 				let yOffset = Number(coords.y);
 				if (!Number.isFinite(yOffset)) yOffset = 0;
-				this.agentLocateLog('scrollPreviewToAgentCoordinates', { pageNum, yOffset, 分页数: pages.length });
-				this.scrollPreviewToRect(previewArea, targetPage, yOffset);
+				// 考虑页面缩放比例，将坐标转换为实际文档坐标
+				const scale = (this.zoomLevel || 100) / 100;
+				const adjustedYOffset = yOffset / scale;
+				this.agentLocateLog('scrollPreviewToAgentCoordinates', { pageNum, yOffset, adjustedYOffset, scale, 分页数: pages.length });
+				this.scrollPreviewToRect(previewArea, targetPage, adjustedYOffset);
 				return true;
 			},
 			/** 与打标顺序一致：正文 p，排除页眉页脚（对齐 w:body 段落序列） */
@@ -3975,45 +3981,19 @@
 				console.log('========== 排查结束 ==========');
 				// ========== 排查代码结束 ==========
 				
-				// 原有缩放逻辑（保持不变）
-				let pages = [];
-				const selectors = [
-					'.docx > div',
-					'.docx-preview-wrapper .docx > div',
-					'[class*="docx"] > div',
-					container.querySelector('.docx')?.children
-				];
+				// 原有缩放逻辑：改为在整个 container 上使用 zoom 属性
+				// zoom 会正确缩放整个布局空间（包括 scrollHeight），不会产生多余空白
+				container.style.setProperty('zoom', String(scale), 'important');
+				container.style.setProperty('transition', 'zoom 0.2s ease', 'important');
 				
-				for (const selector of selectors) {
-					if (typeof selector === 'string') {
-						const found = container.querySelectorAll(selector);
-						if (found.length > 1) {
-							pages = Array.from(found);
-							break;
-						}
-					} else if (selector && selector.length > 1) {
-						pages = Array.from(selector);
-						break;
-					}
-				}
-				
-				if (pages.length === 0) {
-					const allDivs = container.querySelectorAll('div');
-					pages = Array.from(allDivs).filter(div => {
-						const style = window.getComputedStyle(div);
-						const width = parseInt(style.width);
-						return width > 500;
-					});
-				}
-				
-				if (pages.length > 0) {
-					pages.forEach((page) => {
-						page.style.setProperty('transform', `scale(${scale})`, 'important');
-						page.style.setProperty('transform-origin', 'top center', 'important');
-						page.style.setProperty('transition', 'transform 0.2s ease', 'important');
-					});
-					this.updatePageLayout(scale, pages);
-				}
+				// 清除之前对单页施加的 transform（防止重复缩放）
+				const allPages = container.querySelectorAll('div');
+				allPages.forEach(page => {
+					page.style.removeProperty('transform');
+					page.style.removeProperty('transform-origin');
+					page.style.removeProperty('margin-bottom');
+					page.style.removeProperty('margin-top');
+				});
 				this.$nextTick(() => {
 					this.refreshAgentDocxParagraphIndexStamps();
 					// 缩放完成，重建预缓存
@@ -4030,10 +4010,20 @@
 				container.style.display = 'block';
 				container.style.padding = '20rpx';
 				
-				// 恢复页面默认样式
+				// transform: scale() 不改变 DOM 占位高度，需要用负 margin-bottom 吸收多余空白
+				// 公式：页面实际高度 * (1 - scale) 即为多余的空白高度
 				Array.from(pages).forEach(page => {
 					page.style.flex = 'none';
-					page.style.margin = '0 auto 20rpx auto';
+					const pageHeight = page.offsetHeight;
+					const extraSpace = pageHeight * (1 - scale);
+					const gapPx = 12; // 页面之间保留的间距（px）
+					page.style.marginTop = '0';
+					page.style.marginLeft = 'auto';
+					page.style.marginRight = 'auto';
+					// 用负 margin-bottom 消除缩小导致的空白，缩放 >= 1 时保留正常间距
+					page.style.marginBottom = scale >= 1
+						? `${gapPx}px`
+						: `${Math.round(-extraSpace + gapPx)}px`;
 				});
 			},
 			
@@ -4464,26 +4454,31 @@
 				if (container && this.selectedRange) {
 					const wrapper = container.querySelector('.docx-preview-wrapper-wrapper');
 					const contentEl = wrapper || container;
-					const wrapperRect = contentEl.getBoundingClientRect();
 					const rangeRect = this.selectedRange.getBoundingClientRect();
-					const totalHeight = contentEl.scrollHeight;
 					
-					// x: 相对于 wrapper 宽度的百分比
-					const x = ((rangeRect.left - wrapperRect.left) / wrapperRect.width * 100).toFixed(2);
-					// y: 选中文字在整个文档中的百分比位置（相对于 wrapper 顶部，不包含当前滚动位置）
-					// 这样无论当前滚动到哪里，坐标都是相对于文档顶部的固定百分比
-					const rangeOffsetFromWrapperTop = rangeRect.top - wrapperRect.top;
-					const y = ((rangeOffsetFromWrapperTop / totalHeight) * 100).toFixed(2);
+					// 使用 CSS zoom 属性缩放， getBoundingClientRect() 和 scrollHeight 都会同步缩放
+					// 因此直接用 scrollTop + 视口偏移就能还原实际文档坐标，无需除以 scale
+					const previewAreaEl = previewArea || container.parentElement;
+					const previewAreaRect = previewAreaEl.getBoundingClientRect();
+					const currentScrollTop = previewAreaEl.scrollTop;
+					const totalHeight = previewAreaEl.scrollHeight;
 					
-					this.selectedCoordinates = { x: parseFloat(x), y: parseFloat(y) };
+					// 实际文档坐标 = 当前滚动位置 + (range视口位置 - 容器视口位置)
+					const docY = currentScrollTop + (rangeRect.top - previewAreaRect.top);
+					const y = ((docY / totalHeight) * 100).toFixed(2);
+					const scale = (this.zoomLevel || 100) / 100;
+					
 					console.log('[坐标采集] 详细数据:', {
-						selectedCoordinates: this.selectedCoordinates,
-						rangeRect: { top: rangeRect.top, left: rangeRect.left, width: rangeRect.width, height: rangeRect.height },
-						wrapperRect: { top: wrapperRect.top, left: wrapperRect.left, width: wrapperRect.width, height: wrapperRect.height },
+						selectedCoordinates: { x: 0, y: parseFloat(y) },
+						'rangeRect.top': rangeRect.top,
+						'previewAreaRect.top': previewAreaRect.top,
+						currentScrollTop,
 						totalHeight,
-						rangeOffsetFromWrapperTop,
+						scale,
+						docY,
 						selectedText: this.selectedText?.substring(0, 20)
 					});
+					this.selectedCoordinates = { x: 0, y: parseFloat(y) };
 				}
 				
 				// 对选中文本加下划线标记（必须先标记再开弹窗，否则弹窗会清除选区）
@@ -4771,21 +4766,24 @@
 				};
 			
 				if (coords && coords.y !== undefined) {
-					const totalHeight = contentEl.scrollHeight;
-					// y 是相对于整个文档的百分比，转换为像素位置
+					const scale = (this.zoomLevel || 100) / 100;
+					// 使用 CSS zoom 属性缩放， previewArea.scrollHeight 会随 zoom 同步缩放
+					// 采集和定位都以 previewArea.scrollHeight 为基准，比例一致
+					const totalHeight = previewArea.scrollHeight;
 					const targetY = (coords.y / 100) * totalHeight;
 					// 滚动到目标位置（让目标在视口中间偏上）
 					const scrollTop = Math.max(0, targetY - previewArea.clientHeight / 3);
-							
+					
 					console.log('[定位] 计算滚动位置:', {
 						coords,
 						totalHeight,
 						targetY,
 						previewAreaHeight: previewArea.clientHeight,
 						scrollTop,
-						currentScrollTop: previewArea.scrollTop
+						currentScrollTop: previewArea.scrollTop,
+						scale
 					});
-							
+					
 					previewArea.scrollTo({ top: scrollTop, behavior: 'smooth' });
 					console.log('[定位] 已执行 scrollTo');
 					return; // 坐标定位成功，不再进行段落定位

@@ -278,8 +278,8 @@
         </view>
         <view class="upload-modal-body">
           <view class="upload-modal-tips">
-            <text class="tips-line">支持格式：.docx、.doc、.pdf、.xlsx、.pptx</text>
-            <text class="tips-line">文件大小：≤100MB</text>
+            <text class="tips-line">支持格式：.docx、.pdf</text>
+            <text class="tips-line">文件大小：≤50MB</text>
           </view>
           <view class="paper-id-input-section">
             <text class="input-label">论文ID：</text>

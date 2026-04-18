@@ -4009,12 +4009,30 @@
 				const newRole = this.pendingNewRole;
 				uni.showLoading({ title: '转换中...' });
 				try {
-					const { changeUserRole } = await import('@/api/admin.js');
+					const { changeUserRole, getUserSubAuto } = await import('@/api/admin.js');
+					// 先用学号/工号获取真实的 sub
+					const username = this.permissionUser?.id || this.permissionUser?.username;
+					console.log('[角色转换调试] permissionUser:', JSON.stringify(this.permissionUser));
+					console.log('[角色转换调试] 用于查询的用户名/学号:', username);
+					if (!username) {
+						throw new Error('无法获取用户信息，转换失败');
+					}
+					const subResult = await getUserSubAuto(username);
+					console.log('[角色转换调试] getUserSubAuto 返回:', JSON.stringify(subResult));
+					let realSub = null;
+					if (subResult && typeof subResult === 'object') {
+						const data = subResult.data ?? subResult;
+						realSub = data.sub ?? data.id ?? data.user_id ?? null;
+					}
+					if (!realSub) {
+						throw new Error('无法获取用户真实ID，转换失败');
+					}
+					console.log('[角色转换调试] 获取到真实 sub:', realSub);
 					await changeUserRole({
 						new_business_id: this.newBusinessId,
 						new_role: newRole,
 						original_role: this.permissionUser.role,
-						original_sub: this.permissionUser.sub
+						original_sub: realSub
 					});
 					uni.hideLoading();
 					uni.showToast({ title: '角色转换成功', icon: 'success' });
@@ -4022,6 +4040,7 @@
 					await this.loadUserDirectory();
 				} catch (err) {
 					uni.hideLoading();
+					console.error('[角色转换调试] 异常:', err);
 					uni.showToast({ title: err.message || '转换失败', icon: 'none' });
 				}
 			},
