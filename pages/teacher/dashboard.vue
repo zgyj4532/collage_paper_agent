@@ -64,7 +64,7 @@
           class="upload-btn" 
           :class="{ 'downloading': isBatchDownloading }"
           :disabled="isBatchDownloading"
-          @click.stop="openBatchDownload">
+          @click.stop="openBatchDownloadModal">
           <text class="material-symbols-outlined">{{ isBatchDownloading ? 'hourglass_empty' : 'download' }}</text>
           <text>{{ isBatchDownloading ? '下载中...' : '批量下载' }}</text>
         </button>
@@ -294,7 +294,7 @@
           <view class="page-header">
             <view>
               <h2 class="page-title">消息中心</h2>
-              <p class="page-subtitle">您共有 {{ messages.length }} 条消息通知</p>
+              <p class="page-subtitle">你共有 {{ unreadMessageCount }} 条未读消息</p>
             </view>
           </view>
           
@@ -420,44 +420,35 @@
     </view>
     
     <!-- 修改密码弹窗 -->
-    <view v-if="showPasswordModal" class="modal-backdrop" @click.self="closePasswordModal">
-      <view class="modal-content password-modal-content">
-        <view class="modal-header">
-          <text class="modal-title">修改密码</text>
-          <text class="modal-close" @click="closePasswordModal">×</text>
+    <view v-if="showPasswordModal" class="custom-modal-mask" @click="closePasswordModal">
+      <view class="custom-modal-content password-change-modal" @click.stop>
+        <view class="custom-modal-header">
+          <text class="material-symbols-outlined">lock</text>
+          <text>修改密码</text>
         </view>
-        <view class="modal-body">
-          <view class="form-item">
-            <text class="form-label">当前密码</text>
-            <input 
-              class="form-input" 
-              type="password" 
-              v-model="passwordForm.oldPassword"
-              placeholder="请输入当前密码"
-            />
+        <view class="password-modal-body">
+          <view class="pwd-form-item">
+            <text class="pwd-form-label">当前密码</text>
+            <input class="pwd-form-input" v-model="passwordForm.oldPassword" placeholder="请输入当前密码" type="password" password />
           </view>
-          <view class="form-item">
-            <text class="form-label">新密码</text>
-            <input 
-              class="form-input" 
-              type="password" 
-              v-model="passwordForm.newPassword"
-              placeholder="请输入新密码（至少6位）"
-            />
+          <view class="pwd-form-item">
+            <text class="pwd-form-label">新密码</text>
+            <input class="pwd-form-input" v-model="passwordForm.newPassword" placeholder="请输入新密码（至少6位）" type="password" password />
           </view>
-          <view class="form-item">
-            <text class="form-label">确认新密码</text>
-            <input 
-              class="form-input" 
-              type="password" 
+          <view class="pwd-form-item">
+            <text class="pwd-form-label">确认新密码</text>
+            <input class="pwd-form-input"
+              :class="{ 'pwd-input-error': passwordError }"
               v-model="passwordForm.confirmPassword"
               placeholder="请再次输入新密码"
-            />
+              type="password" password
+              @input="passwordError = ''"/>
+            <text v-if="passwordError" class="pwd-error-tip">{{ passwordError }}</text>
           </view>
         </view>
-        <view class="modal-footer">
-          <view class="btn btn-cancel" @click="closePasswordModal">取消</view>
-          <view class="btn btn-confirm" @click="submitChangePassword">确认修改</view>
+        <view class="custom-modal-footer">
+          <view class="modal-btn cancel" @click="closePasswordModal">取消</view>
+          <view class="modal-btn confirm" @click="submitChangePassword">确认修改</view>
         </view>
       </view>
     </view>
@@ -579,9 +570,24 @@
                   <text class="ai-agent-report-subtitle">参考文献核查（{{ agentReferenceVerificationForPanel.length }} 条）</text>
                 </view>
                 <view v-if="agentChunkReviewsForPanel.length" class="ai-agent-chunk-list">
+                  <!-- 问题类型筛选栏 -->
+                  <view v-if="agentIssueTypesAvailable.length > 1" class="ai-agent-filter-bar">
+                    <text
+                      class="ai-agent-filter-tag"
+                      :class="{ active: agentIssueTypeFilter === 'all' }"
+                      @click="agentIssueTypeFilter = 'all'"
+                    >全部</text>
+                    <text
+                      v-for="tp in agentIssueTypesAvailable"
+                      :key="tp"
+                      class="ai-agent-filter-tag"
+                      :class="{ active: agentIssueTypeFilter === tp }"
+                      @click="agentIssueTypeFilter = tp"
+                    >{{ formatAgentIssueType(tp) }}</text>
+                  </view>
                   <text class="ai-agent-report-subtitle">分段问题（{{ agentChunkReviewsForPanel.length }} 段）</text>
                   <view
-                    v-for="(chunk, cIdx) in agentChunkReviewsForPanel"
+                    v-for="(chunk, cIdx) in agentChunkReviewsFiltered"
                     :key="'ag-chunk-' + cIdx + '-' + (chunk.section_id ?? chunk.sectionId ?? cIdx)"
                     class="ai-agent-chunk-item"
                   >
@@ -835,13 +841,78 @@
                 </view>
               </view>
               <view class="attachment-action">
-                <text class="material-symbols-outlined" style="color: var(--primary);">visibility</text>
+                <text class="material-symbols-outlined" style="color: var(--primary);" @click.stop="previewAttachment(file)">visibility</text>
+                <text 
+                  class="material-symbols-outlined" 
+                  :class="{ 'downloading': downloadingAttachmentId === file.id }"
+                  :style="{ 
+                    color: downloadingAttachmentId === file.id ? 'var(--on-surface-variant)' : 'var(--primary)', 
+                    marginLeft: '16px',
+                    opacity: downloadingAttachmentId === file.id ? 0.6 : 1,
+                    cursor: downloadingAttachmentId === file.id ? 'not-allowed' : 'pointer'
+                  }" 
+                  @click.stop="downloadingAttachmentId === file.id ? null : downloadAttachment(file)"
+                >{{ downloadingAttachmentId === file.id ? 'hourglass_empty' : 'download' }}</text>
               </view>
             </view>
           </view>
         </view>
         <view class="custom-modal-footer">
           <view class="modal-btn cancel" @click="showAttachmentModal = false">关闭</view>
+          <view 
+            class="modal-btn primary"
+            :class="{ 'downloading': isAllAttachmentDownloading }"
+            :style="{ opacity: isAllAttachmentDownloading ? 0.7 : 1, cursor: isAllAttachmentDownloading ? 'not-allowed' : 'pointer' }"
+            @click="isAllAttachmentDownloading ? null : downloadAllAttachments()"
+          >
+            <text class="material-symbols-outlined" style="font-size: 16px; margin-right: 4px; vertical-align: middle;">
+              {{ isAllAttachmentDownloading ? 'hourglass_empty' : 'download' }}
+            </text>
+            <text>{{ isAllAttachmentDownloading ? '下载中...' : '全部下载' }}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 批量下载选项弹窗 -->
+    <view v-if="showBatchDownloadModal" class="custom-modal-mask batch-download-mask" @click="showBatchDownloadModal = false">
+      <view class="custom-modal-content batch-download-modal" @click.stop>
+        <view class="custom-modal-header">
+          <text class="material-symbols-outlined">download</text>
+          <text>批量下载</text>
+        </view>
+        <view class="batch-download-body">
+          <text class="batch-download-desc">当前筛选：<text class="batch-download-filter-label">{{ currentFilterLabel }}</text></text>
+          <view class="batch-download-options">
+            <view 
+              class="batch-download-option" 
+              :class="{ active: batchDownloadType === 'papers' }"
+              @click="batchDownloadType = 'papers'">
+              <view class="batch-option-radio">
+                <view class="batch-option-radio-dot" v-if="batchDownloadType === 'papers'"></view>
+              </view>
+              <view class="batch-option-content">
+                <text class="batch-option-title">批量下载「{{ currentFilterLabel }}」论文</text>
+                <text class="batch-option-desc">仅下载论文文件，自动打包为ZIP压缩包</text>
+              </view>
+            </view>
+            <view 
+              class="batch-download-option" 
+              :class="{ active: batchDownloadType === 'papers_and_attachments' }"
+              @click="batchDownloadType = 'papers_and_attachments'">
+              <view class="batch-option-radio">
+                <view class="batch-option-radio-dot" v-if="batchDownloadType === 'papers_and_attachments'"></view>
+              </view>
+              <view class="batch-option-content">
+                <text class="batch-option-title">批量下载「{{ currentFilterLabel }}」论文及其附件</text>
+                <text class="batch-option-desc">同时下载论文和附件，分两个ZIP包进行下载</text>
+              </view>
+            </view>
+          </view>
+        </view>
+        <view class="custom-modal-footer">
+          <view class="modal-btn cancel" @click="showBatchDownloadModal = false">取消</view>
+          <view class="modal-btn confirm" @click="confirmBatchDownload">开始下载</view>
         </view>
       </view>
     </view>
@@ -971,6 +1042,7 @@
 				agentReportPayload: null,
 				agentAuditSubmitting: false,
 				agentReportLoading: false,
+				agentIssueTypeFilter: 'all', // AI审查报告问题类型筛选，'all' 表示全部
 				docxBlob: null, // docx 文件 blob
 				// 审阅工具栏字数（须绑定 data，避免批注等更新触发重绘时静态模板把 DOM 改写的字数冲回「统计中」）
 				reviewToolbarWordCountText: '字数: 统计中...',
@@ -1025,7 +1097,12 @@
 				previewError: null, // 预览错误信息
 				// 下载状态
 				downloadingPaperId: null, // 正在下载的论文ID
+				downloadingAttachmentId: null, // 正在下载的附件ID
+				isAllAttachmentDownloading: false, // 是否正在全部下载附件
 				isBatchDownloading: false, // 是否正在批量下载
+				// 批量下载选择弹窗
+				showBatchDownloadModal: false, // 是否显示批量下载选项弹窗
+				batchDownloadType: 'papers', // 批量下载类型：papers=仅论文，papers_and_attachments=论文+附件
 				// 班级相关
 				classList: [], // 班级列表
 				classLoadError: false, // 班级加载失败标志
@@ -1128,6 +1205,17 @@
 			}
 		},
 		computed: {
+			// 当前筛选状态标签
+			currentFilterLabel() {
+				const map = {
+					'all': '全部',
+					'pending': '待审阅',
+					'pending_update': '待修改',
+					'finalized': '已定稿',
+					'unuploaded': '未上传'
+				};
+				return map[this.currentFilter] || '全部';
+			},
 			filteredStudents() {
 				// 未上传筛选：直接返回未上传成员列表
 				if (this.currentFilter === 'unuploaded') {
@@ -1220,7 +1308,15 @@
 			paginatedMessages() {
 				const start = (this.messagePage - 1) * this.messagePageSize;
 				const end = start + this.messagePageSize;
-				return this.messages.slice(start, end);
+				return this.sortedMessages.slice(start, end);
+			},
+			// 排序后的消息列表：未读在前，已读在后
+			sortedMessages() {
+				return [...this.messages].sort((a, b) => {
+					// 未读(isRead=false)排前面，已读(isRead=true)排后面
+					if (a.isRead === b.isRead) return 0;
+					return a.isRead ? 1 : -1;
+				});
 			},
 			// 消息总页数
 			totalMessagePages() {
@@ -1426,6 +1522,30 @@
 				const parsed = p.parse_result?.data ?? p.parse_result ?? {};
 				const sections = parsed.sections;
 				return Array.isArray(sections) ? sections : [];
+			},
+			// 收集所有已出现的问题类型（用于筛选栏）
+			agentIssueTypesAvailable() {
+				const types = new Set();
+				for (const chunk of this.agentChunkReviewsForPanel) {
+					const issues = chunk.issues || chunk.llm_issues || chunk.local_issues || [];
+					for (const iss of issues) {
+						const t = iss.issue_type || iss.issueType;
+						if (t) types.add(t.toLowerCase());
+					}
+				}
+				return Array.from(types);
+			},
+			// 筛选后的分段列表（隐藏没有匹配类型的段落）
+			agentChunkReviewsFiltered() {
+				const all = this.agentChunkReviewsForPanel;
+				if (this.agentIssueTypeFilter === 'all') return all;
+				return all.filter(chunk => {
+					const issues = chunk.issues || chunk.llm_issues || chunk.local_issues || [];
+					return issues.some(iss => {
+						const t = (iss.issue_type || iss.issueType || '').toLowerCase();
+						return t === this.agentIssueTypeFilter;
+					});
+				});
 			},
 			agentReferenceVerificationForPanel() {
 				const p = this.agentReportPayload;
@@ -2181,9 +2301,15 @@
 			agentChunkIssuesPreview(chunk) {
 				if (!chunk) return [];
 				const a = chunk.issues || chunk.llm_issues;
-				if (Array.isArray(a) && a.length > 0) return a;
-				const b = chunk.local_issues;
-				return Array.isArray(b) ? b : [];
+				const raw = (Array.isArray(a) && a.length > 0) ? a : (Array.isArray(chunk.local_issues) ? chunk.local_issues : []);
+				// 应用类型筛选
+				if (this.agentIssueTypeFilter && this.agentIssueTypeFilter !== 'all') {
+					return raw.filter(iss => {
+						const t = (iss.issue_type || iss.issueType || '').toLowerCase();
+						return t === this.agentIssueTypeFilter;
+					});
+				}
+				return raw;
 			},
 			/**
 			 * 《JSON返回数据类型说明》§3.2：parse_result.data.sections[].id 与 chunk_reviews[].section_id 对应；
@@ -2375,6 +2501,7 @@
 			// 将问题类型英文转中文
 			formatAgentIssueType(type) {
 				const map = {
+					// 原有映射
 					'format': '格式问题',
 					'typo': '拼写/错别字',
 					'logic': '逻辑问题',
@@ -2389,7 +2516,12 @@
 					'citation': '引用格式',
 					'plagiarism': '重复内容',
 					'completeness': '内容完整性',
-					'other': '其他问题'
+					'other': '其他问题',
+					// 补充映射（AI审查报告中的具体错误类型）
+					'missing_required': '缺失必填项',
+					'placeholder_unchecked': '占位符未替换',
+					'format_error': '格式错误',
+					'value_invalid': '字段値无效',
 				};
 				const key = (type || '').toLowerCase();
 				return map[key] || type || '问题';
@@ -5270,8 +5402,19 @@
 					console.error('定稿确认失败:', err);
 				}
 			},
+			// 打开批量下载选项弹窗
+			openBatchDownloadModal() {
+				if (this.isBatchDownloading) return;
+				this.batchDownloadType = 'papers';
+				this.showBatchDownloadModal = true;
+			},
+			// 确认批量下载
+			confirmBatchDownload() {
+				this.showBatchDownloadModal = false;
+				this.openBatchDownload(this.batchDownloadType);
+			},
 			// 批量下载（直接下载，不显示弹窗）
-			async openBatchDownload() {
+			async openBatchDownload(type = 'papers') {
 				// 获取当前筛选出的所有学生的论文
 				const papers = [];
 				this.filteredStudents.forEach(card => {
@@ -5300,22 +5443,11 @@
 						roles: ['teacher']
 					};
 					
-					// 提取所有论文ID
-					const paperIds = papers.map(p => p.paperId || p.id || p.paper_id).filter(Boolean).join(',');
+					const filterLabel = this.currentFilterLabel;
+					const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
 					
-					// 调用批量下载接口
-					const res = await batchDownloadPapers(paperIds, { current_user: JSON.stringify(currentUser) });
-					
-					// 处理响应（ArrayBuffer）
-					if (res && res instanceof ArrayBuffer) {
-						// 创建 Blob
-						const blob = new Blob([res], { type: 'application/zip' });
-						
-						// 生成文件名
-						const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-						const fileName = `批量下载_${papers.length}篇论文_${timestamp}.zip`;
-						
-						// 创建下载链接
+					// 辅助函数：触发下载 Blob
+					const triggerDownload = (blob, fileName) => {
 						const url = window.URL.createObjectURL(blob);
 						const link = document.createElement('a');
 						link.href = url;
@@ -5323,13 +5455,44 @@
 						document.body.appendChild(link);
 						link.click();
 						document.body.removeChild(link);
-						
-						// 释放 URL 对象
 						setTimeout(() => window.URL.revokeObjectURL(url), 1000);
-						
-						uni.showToast({ title: `已开始下载 ${papers.length} 篇论文`, icon: 'success' });
+					};
+					
+					// ① 下载论文
+					const paperIds = papers.map(p => p.paperId || p.id || p.paper_id).filter(Boolean).join(',');
+					const paperRes = await batchDownloadPapers(paperIds, { current_user: JSON.stringify(currentUser) });
+					if (paperRes && paperRes instanceof ArrayBuffer) {
+						const blob = new Blob([paperRes], { type: 'application/zip' });
+						triggerDownload(blob, `批量下载_${filterLabel}论文_${timestamp}.zip`);
 					} else {
-						uni.showToast({ title: '下载失败', icon: 'none' });
+						uni.showToast({ title: '论文下载失败', icon: 'none' });
+						return;
+					}
+					
+					// ② 如果选择论文+附件，再下载附件
+					if (type === 'papers_and_attachments') {
+						try {
+							const token = uni.getStorageSync('token');
+							const { config } = await import('@/api/config.js');
+							const attachUrl = `${config.baseURL}/api/v1/materials/download?mode=all&current_user=${encodeURIComponent(JSON.stringify(currentUser))}`;
+							const attachResp = await fetch(attachUrl, {
+								method: 'POST',
+								headers: { 'Authorization': token ? `Bearer ${token}` : '' }
+							});
+							if (attachResp.ok) {
+								const attachBuffer = await attachResp.arrayBuffer();
+								const attachBlob = new Blob([attachBuffer], { type: 'application/zip' });
+								triggerDownload(attachBlob, `批量下载_${filterLabel}附件_${timestamp}.zip`);
+								uni.showToast({ title: `已开始下载 ${papers.length} 篇论文及附件`, icon: 'success' });
+							} else {
+								uni.showToast({ title: '论文已下载，附件下载失败', icon: 'none' });
+							}
+						} catch (attachErr) {
+							console.error('附件下载失败:', attachErr);
+							uni.showToast({ title: '论文已下载，附件下载失败', icon: 'none' });
+						}
+					} else {
+						uni.showToast({ title: `已开始下载 ${papers.length} 篇论文`, icon: 'success' });
 					}
 				} catch (err) {
 					console.error('批量下载失败:', err);
@@ -5524,10 +5687,30 @@
 				}
 			},
 			// 标记消息为已读
-			markAsRead(msg) {
+			async markAsRead(msg) {
+				if (msg.isRead) return;
+				
+				const originalIsRead = msg.isRead;
 				msg.isRead = true;
 				if (this.unreadMessageCount > 0) {
 					this.unreadMessageCount--;
+				}
+				
+				try {
+					const userInfo = uni.getStorageSync('userInfo') || {};
+					const currentUser = {
+						sub: userInfo.id || userInfo.sub || userInfo.user_id || 0,
+						username: userInfo.username || 'teacher',
+						roles: ['teacher']
+					};
+					const { markNotificationAsRead } = await import('@/api/teacher.js');
+					await markNotificationAsRead(msg.id, currentUser);
+					console.log('消息已标记为已读:', msg.id);
+				} catch (err) {
+					console.error('标记消息已读失败:', err);
+					// 失败时回滚状态
+					msg.isRead = originalIsRead;
+					this.unreadMessageCount++;
 				}
 			},
 			// 查看消息详情
@@ -6160,54 +6343,231 @@
 			},
 			
 			// 下载附件
-			downloadAttachment(file) {
-				// 如果是本地文件，直接打开
-				if (file.url && file.url.startsWith('/static/')) {
-					window.open(file.url, '_blank');
+			async downloadAttachment(file) {
+				console.log('[下载附件] 开始下载，文件信息:', file);
+				
+				if (!file.id) {
+					console.error('[下载附件] 文件ID不存在');
+					uni.showToast({ title: '附件信息不完整', icon: 'none' });
 					return;
 				}
 				
-				uni.showToast({
-					title: `开始下载: ${file.name}`,
-					icon: 'none'
-				});
-				// TODO: 实现实际的下载逻辑
-				// uni.downloadFile({
-				//     url: file.url,
-				//     success: (res) => { ... }
-				// });
+				// 设置下载状态
+				this.downloadingAttachmentId = file.id;
+				
+				uni.showLoading({ title: '下载中...' });
+				
+				try {
+					// 获取用户信息
+					const userInfo = uni.getStorageSync('userInfo') || {};
+					const currentUser = {
+						sub: userInfo.id || userInfo.sub || userInfo.user_id || 0,
+						username: userInfo.username || 'teacher',
+						roles: ['teacher']
+					};
+					
+					// 获取 token
+					const token = uni.getStorageSync('token');
+					const { config } = await import('@/api/config.js');
+					const downloadUrl = `${config.baseURL}/api/v1/materials/download?mode=selected&file_ids=${file.id}&current_user=${encodeURIComponent(JSON.stringify(currentUser))}`;
+					
+					console.log('[下载附件] 下载URL:', downloadUrl);
+					
+					// #ifdef H5
+					console.log('[下载附件] 使用fetch下载');
+					// 使用 fetch API 直接获取二进制数据，确保正确处理 arraybuffer
+					const response = await fetch(downloadUrl, {
+						method: 'POST',
+						headers: {
+							'Authorization': token ? `Bearer ${token}` : ''
+						}
+					});
+					
+					console.log('[下载附件] fetch响应状态:', response.status, response.ok);
+					console.log('[下载附件] Content-Type:', response.headers.get('content-type'));
+					console.log('[下载附件] Content-Disposition:', response.headers.get('content-disposition'));
+					
+					if (!response.ok) throw new Error('下载失败');
+					
+					// 获取 blob 数据
+					const blob = await response.blob();
+					console.log('[下载附件] Blob大小:', blob.size, '类型:', blob.type);
+					
+					// 创建下载链接
+					const url = window.URL.createObjectURL(blob);
+					const link = document.createElement('a');
+					link.href = url;
+					// 从 Content-Disposition 获取文件名，或使用默认名称
+					const contentDisposition = response.headers.get('content-disposition');
+					let fileName = file.name || '附件.zip';
+					if (contentDisposition) {
+						const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+						if (match && match[1]) {
+							fileName = match[1].replace(/['"]/g, '');
+						}
+					} else if (blob.type === 'application/zip') {
+						// 如果后端返回的是ZIP但没有提供文件名，使用.zip扩展名
+						fileName = '附件.zip';
+					}
+					console.log('[下载附件] 最终文件名:', fileName);
+					link.download = fileName;
+					document.body.appendChild(link);
+					link.click();
+					document.body.removeChild(link);
+					
+					// 释放 URL 对象
+					setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+					
+					uni.hideLoading();
+					this.downloadingAttachmentId = null;
+					uni.showToast({ title: '下载已开始', icon: 'success' });
+					// #endif
+					
+					// #ifndef H5
+					// 小程序环境使用 uni.downloadFile
+					uni.downloadFile({
+						url: downloadUrl,
+						header: {
+							'Authorization': token ? `Bearer ${token}` : ''
+						},
+						success: (res) => {
+							uni.hideLoading();
+							this.downloadingAttachmentId = null;
+							if (res.statusCode === 200) {
+								uni.saveFile({
+									tempFilePath: res.tempFilePath,
+									success: () => uni.showToast({ title: '文件已保存', icon: 'success' }),
+									fail: () => uni.showToast({ title: '保存失败', icon: 'none' })
+								});
+							} else {
+								uni.showToast({ title: '下载失败', icon: 'none' });
+							}
+						},
+						fail: () => {
+							uni.hideLoading();
+							this.downloadingAttachmentId = null;
+							uni.showToast({ title: '下载失败', icon: 'none' });
+						}
+					});
+					// #endif
+				} catch (e) {
+					uni.hideLoading();
+					this.downloadingAttachmentId = null;
+					uni.showToast({ title: '下载失败', icon: 'none' });
+					console.error('下载附件失败:', e);
+				}
+			},
+			// 全部下载附件
+			async downloadAllAttachments() {
+				const list = this.attachmentList;
+				if (!list || list.length === 0) {
+					uni.showToast({ title: '暂无附件', icon: 'none' });
+					return;
+				}
+				const ids = list.map(f => f.id).filter(Boolean);
+				if (ids.length === 0) {
+					uni.showToast({ title: '附件信息不完整', icon: 'none' });
+					return;
+				}
+				this.isAllAttachmentDownloading = true;
+				uni.showLoading({ title: '下载中...' });
+				try {
+					const userInfo = uni.getStorageSync('userInfo') || {};
+					const currentUser = {
+						sub: userInfo.id || userInfo.sub || userInfo.user_id || 0,
+						username: userInfo.username || 'teacher',
+						roles: ['teacher']
+					};
+					const token = uni.getStorageSync('token');
+					const { config } = await import('@/api/config.js');
+					const downloadUrl = `${config.baseURL}/api/v1/materials/download?mode=selected&file_ids=${ids.join(',')}&current_user=${encodeURIComponent(JSON.stringify(currentUser))}`;
+					// #ifdef H5
+					const response = await fetch(downloadUrl, {
+						method: 'POST',
+						headers: { 'Authorization': token ? `Bearer ${token}` : '' }
+					});
+					if (!response.ok) throw new Error('下载失败');
+					const blob = await response.blob();
+					const url = window.URL.createObjectURL(blob);
+					const link = document.createElement('a');
+					link.href = url;
+					const cd = response.headers.get('content-disposition');
+					let fileName = '附件.zip';
+					if (cd) {
+						const m = cd.match(/filename[^;=\n]*=(['"]?)([^'"\n;]*)\1/);
+						if (m && m[2]) fileName = m[2];
+					}
+					link.download = fileName;
+					document.body.appendChild(link);
+					link.click();
+					document.body.removeChild(link);
+					setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+					uni.hideLoading();
+					this.isAllAttachmentDownloading = false;
+					uni.showToast({ title: '下载已开始', icon: 'success' });
+					// #endif
+					// #ifndef H5
+					uni.downloadFile({
+						url: downloadUrl,
+						header: { 'Authorization': token ? `Bearer ${token}` : '' },
+						success: (res) => {
+							uni.hideLoading();
+							this.isAllAttachmentDownloading = false;
+							if (res.statusCode === 200) {
+								uni.saveFile({
+									tempFilePath: res.tempFilePath,
+									success: () => uni.showToast({ title: '文件已保存', icon: 'success' }),
+									fail: () => uni.showToast({ title: '保存失败', icon: 'none' })
+								});
+							} else {
+								uni.showToast({ title: '下载失败', icon: 'none' });
+							}
+						},
+						fail: () => {
+							uni.hideLoading();
+							this.isAllAttachmentDownloading = false;
+							uni.showToast({ title: '下载失败', icon: 'none' });
+						}
+					});
+					// #endif
+				} catch (e) {
+					uni.hideLoading();
+					this.isAllAttachmentDownloading = false;
+					uni.showToast({ title: '下载失败', icon: 'none' });
+					console.error('全部下载附件失败:', e);
+				}
 			},
 			// 预览附件
 			async previewAttachment(file) {
 				uni.vibrateShort();
-				
-				// 如果是本地文件，直接在新窗口打开
-				if (file.url && file.url.startsWith('/static/')) {
-					window.open(file.url, '_blank');
+							
+				if (!file.id) {
+					uni.showToast({ title: '附件信息不完整', icon: 'none' });
 					return;
 				}
-				
-				this.currentPreviewAttachment = file;
-				this.showAttachmentPreviewModal = true;
-				this.isPreviewLoading = true;
-				this.previewError = null;
-				
-				// 检查文件类型是否支持预览
-				const ext = file.name?.split('.').pop()?.toLowerCase();
-				const supportedExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'pdf', 'docx'];
-				
-				if (!supportedExts.includes(ext)) {
-					// 不支持的文件类型，直接显示不支持提示
-					this.isPreviewLoading = false;
-					return;
-				}
-				
-				// 如果是 docx 文件，使用 docx-preview 渲染
-				if (ext === 'docx') {
-					await this.loadAndRenderDocx(file);
-				} else {
-					// PDF、图片等其他类型直接关闭 loading，让对应分支渲染
-					this.isPreviewLoading = false;
+							
+				try {
+					// 获取附件的完整URL
+					const { config } = await import('@/api/config.js');
+					let fileUrl = '';
+								
+					// 优先使用 storagePath 构建URL
+					if (file.storagePath) {
+						// 如果 storagePath 是绝对路径，提取文件名部分
+						const fileName = file.storagePath.split('/').pop();
+						fileUrl = `${config.baseURL}/doc/attachment/${encodeURIComponent(fileName)}`;
+					} else if (file.url && file.url !== '#') {
+						fileUrl = file.url.startsWith('http') ? file.url : `${config.baseURL}${file.url}`;
+					} else {
+						uni.showToast({ title: '附件链接不可用', icon: 'none' });
+						return;
+					}
+								
+					// 在新标签页打开附件
+					window.open(fileUrl, '_blank');
+				} catch (e) {
+					console.error('预览附件失败:', e);
+					uni.showToast({ title: '预览失败', icon: 'none' });
 				}
 			},
 			
@@ -6688,7 +7048,8 @@
 					}
 					
 					uni.showLoading({ title: '修改中...', mask: true });
-					
+									
+					const { changePassword } = await import('@/api/user.js');
 					const res = await changePassword({
 						old_password: oldPassword,
 						new_password: newPassword
@@ -7891,6 +8252,18 @@
   background: rgba(0, 91, 191, 0.08);
 }
 
+.modal-btn.primary {
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.modal-btn.primary:hover {
+  background: rgba(79, 70, 229, 0.08);
+}
+
 /* 删除弹窗取消按钮：红字无背景hover */
 .modal-btn.cancel.danger-cancel {
   color: #ef4444;
@@ -8378,6 +8751,39 @@
 
 .ai-agent-chunk-list {
   margin-top: 4px;
+}
+
+/* 问题类型筛选栏 */
+.ai-agent-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 10px;
+  padding: 8px 10px;
+  background: var(--surface-container);
+  border-radius: 8px;
+}
+
+.ai-agent-filter-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--on-surface-variant);
+  background: var(--surface-container-high);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  user-select: none;
+}
+
+.ai-agent-filter-tag:hover {
+  background: var(--surface-container-highest);
+}
+
+.ai-agent-filter-tag.active {
+  background: #4f46e5;
+  color: #fff;
 }
 
 .ai-agent-chunk-item {
@@ -9569,5 +9975,108 @@
 
 .docx-preview-content .docx-preview-wrapper {
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* ===== 批量下载选项弹窗 ===== */
+.batch-download-mask {
+  backdrop-filter: blur(8rpx);
+  -webkit-backdrop-filter: blur(8rpx);
+}
+
+.batch-download-modal {
+  width: 88%;
+  max-width: 420px;
+}
+
+.batch-download-body {
+  padding: 8px 24px 16px;
+}
+
+.batch-download-desc {
+  display: block;
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 16px;
+}
+
+.batch-download-filter-label {
+  font-weight: 600;
+  color: #005bbf;
+}
+
+.batch-download-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.batch-download-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1.5px solid #e5e7eb;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  background: #fafafa;
+}
+
+.batch-download-option:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.batch-download-option.active {
+  border-color: #005bbf;
+  background: #eff6ff;
+}
+
+.batch-option-radio {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #d1d5db;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+  transition: border-color 0.18s;
+}
+
+.batch-download-option.active .batch-option-radio {
+  border-color: #005bbf;
+}
+
+.batch-option-radio-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #005bbf;
+}
+
+.batch-option-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.batch-option-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+  line-height: 1.4;
+}
+
+.batch-download-option.active .batch-option-title {
+  color: #005bbf;
+}
+
+.batch-option-desc {
+  font-size: 12px;
+  color: #9ca3af;
+  line-height: 1.4;
 }
 </style>

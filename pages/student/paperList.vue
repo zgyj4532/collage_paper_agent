@@ -73,38 +73,24 @@
               </view>
             </view>
             <view
-              class="stat-item clickable"
-              @click="sortPapersByStatus(displayStatusBuckets.PENDING_REVIEW)"
-              :class="{ active: activeSort === displayStatusBuckets.PENDING_REVIEW }"
+              class="stat-item clickable agent-stat-item"
+              :class="{ disabled: !sidebarAgentPaper }"
+              @click="handleSidebarAgentUse"
             >
-              <view class="stat-icon material-symbols-outlined">pending</view>
+              <view class="stat-icon material-symbols-outlined">smart_toy</view>
               <view class="stat-content">
-                <text class="stat-label">待审阅</text>
-                <text class="stat-value">{{ getDisplayStatusCount(displayStatusBuckets.PENDING_REVIEW) }}</text>
+                <text class="agent-stat-title">智能体使用</text>
+                <text class="agent-stat-desc">{{ sidebarAgentPaper ? '当前论文已就绪，点击进入' : '暂无论文可用' }}</text>
               </view>
             </view>
-            <view
-              class="stat-item clickable"
-              @click="sortPapersByStatus(displayStatusBuckets.PENDING_REVISION)"
-              :class="{ active: activeSort === displayStatusBuckets.PENDING_REVISION }"
-            >
-              <view class="stat-icon material-symbols-outlined">edit_note</view>
+            <view class="stat-item clickable agent-permission-entry" @click="openAgentPermissionApplyModal">
+              <view class="stat-icon material-symbols-outlined">verified_user</view>
               <view class="stat-content">
-                <text class="stat-label">待修改</text>
-                <text class="stat-value">{{ getDisplayStatusCount(displayStatusBuckets.PENDING_REVISION) }}</text>
+                <text class="agent-stat-title">智能体权限</text>
+                <text class="agent-stat-desc">向管理员提交调用权限申请</text>
               </view>
             </view>
-            <view
-              class="stat-item clickable"
-              @click="sortPapersByStatus(displayStatusBuckets.FINALIZED)"
-              :class="{ active: activeSort === displayStatusBuckets.FINALIZED }"
-            >
-              <view class="stat-icon material-symbols-outlined">check_circle</view>
-              <view class="stat-content">
-                <text class="stat-label">已定稿</text>
-                <text class="stat-value">{{ getDisplayStatusCount(displayStatusBuckets.FINALIZED) }}</text>
-              </view>
-            </view>
+            
           </view>
           <view class="sidebar-menu">
             <view class="menu-item" @click="goToWorkbench">
@@ -130,7 +116,7 @@
 
         <!-- 论文列表 -->
         <transition-group v-else name="paper-list" tag="view" class="paper-list">
-          <view v-for="(paper, index) in filteredPapers" :key="paper.id" :id="'paper-' + paper.id" class="paper-card" :class="{ 'collapsed': isCollapsed(paper.id), 'highlighted': highlightedPaperId === paper.id }" @click="viewPaper(paper)">
+          <view v-for="(paper, index) in filteredPapers" :key="paper.id" :id="'paper-' + paper.id" class="paper-card" :class="{ 'highlighted': highlightedPaperId === paper.id }" @click="viewPaper(paper)">
             <!-- 论文头部 -->
             <view class="paper-header">
               <view class="paper-info">
@@ -141,15 +127,11 @@
                 <view class="refresh-status-btn" @click.prevent.stop="fetchAllPaperStatus">
                   <text class="refresh-text">获取状态</text>
                 </view>
-                <!-- 折叠按钮 -->
-                <view class="collapse-btn" @click.prevent.stop="toggleCollapse(paper.id, $event)">
-                  <text class="collapse-icon material-symbols-outlined" :class="{ 'collapsed': isCollapsed(paper.id) }">expand_more</text>
-                </view>
               </view>
             </view>
 
-            <!-- 论文内容（可折叠区域） -->
-            <view class="paper-content-wrapper" :class="{ 'collapsed': isCollapsed(paper.id) }">
+            <!-- 论文内容 -->
+            <view class="paper-content-wrapper">
               <view class="paper-content">
                 <view class="paper-detail">
                   <text class="detail-label">最后更新：</text>
@@ -396,28 +378,7 @@
       </view>
     </view>
   </view>
-  
-  <!-- 关于系统弹窗 -->
-  <view v-if="showAboutModal" class="modal-backdrop" @click.self="showAboutModal = false">
-    <view class="modal-content about-modal">
-      <view class="modal-header">
-        <text class="modal-title">关于系统</text>
-        <text class="modal-close" @click="showAboutModal = false">×</text>
-      </view>
-      <view class="modal-body about-modal-body">
-        <view class="about-icon">
-          <text class="material-symbols-outlined">school</text>
-        </view>
-        <view class="about-title">计测学院毕业论文管理系统</view>
-        <view class="about-version">v1.0</view>
-        <view class="about-desc">为学院师生提供论文管理、审阅和反馈功能。</view>
-      </view>
-      <view class="modal-footer">
-        <view class="btn btn-confirm" @click="showAboutModal = false">确定</view>
-      </view>
-    </view>
-  </view>
-  
+    
   <!-- 修改密码弹窗 -->
   <view v-if="showPasswordModal" class="modal-backdrop" @click.self="closePasswordModal">
     <view class="modal-content password-modal-content student-user-panel-modal">
@@ -431,7 +392,7 @@
           <input 
             class="user-panel-form-input"
             type="password" 
-            v-model="passwordForm.oldPassword"
+            v-model="passwordForm.currentPassword"
             placeholder="请输入当前密码"
           />
         </view>
@@ -453,6 +414,12 @@
             placeholder="请再次输入新密码"
           />
         </view>
+        <view class="user-panel-form-tips" v-if="!passwordError">
+          <text class="user-panel-tips-text">密码修改成功后需要重新登录</text>
+        </view>
+        <view class="user-panel-form-tips error-tips" v-else>
+          <text class="user-panel-tips-text error-text">{{ passwordError }}</text>
+        </view>
       </view>
       <view class="user-panel-footer">
         <view class="user-panel-btn user-panel-btn-cancel" @click="closePasswordModal">取消</view>
@@ -460,10 +427,393 @@
       </view>
     </view>
   </view>
+  
+  <!-- 智能体权限提示弹窗 -->
+  <view v-if="showAgentPermissionModal" class="modal-backdrop" @click.self="closeAgentPermissionModal">
+    <view class="modal-content agent-permission-modal">
+      <view class="modal-header agent-permission-header">
+        <text class="modal-title">智能体使用权限</text>
+        <text class="modal-close" @click="closeAgentPermissionModal">×</text>
+      </view>
+      <view class="modal-body agent-permission-modal-body">
+        <view class="agent-permission-icon">
+          <text class="material-symbols-outlined">lock_person</text>
+        </view>
+        <view class="agent-permission-title">当前未开通智能体权限</view>
+        <view class="agent-permission-student">学号 {{ agentPermissionStudentId || '未获取' }}</view>
+        <view class="agent-permission-desc">当前暂未开通智能体使用权限，无法使用该功能。</view>
+        <view class="agent-permission-tip">
+          <text class="material-symbols-outlined">campaign</text>
+          <text>如需此权限，请通过“权限开通”向管理员申请。</text>
+        </view>
+      </view>
+      <view class="modal-footer agent-permission-footer">
+        <view class="btn btn-confirm" @click="closeAgentPermissionModal">我知道了</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 智能体使用提示弹窗 -->
+  <view v-if="showAgentUseModal" class="modal-backdrop" @click.self="!agentUseModal.loading && closeAgentUseModal()">
+    <view class="modal-content agent-use-modal">
+      <view class="modal-header agent-use-header">
+        <text class="modal-title">智能体使用</text>
+        <text class="modal-close" @click="!agentUseModal.loading && closeAgentUseModal()">&#215;</text>
+      </view>
+      <view class="modal-body agent-use-modal-body">
+
+        <!-- 确认提交阶段（ready） -->
+        <template v-if="agentUseModal.ready">
+          <view class="agent-use-icon">
+            <text class="material-symbols-outlined">smart_toy</text>
+          </view>
+          <view class="agent-use-title">智能体审核</view>
+          <view class="agent-use-student">学号 {{ agentUseModal.studentId || '未获取' }}</view>
+          <view class="agent-use-paper">当前论文：{{ agentUseModal.paperTitle || '当前论文' }}</view>
+          <view class="agent-use-tip">
+            <text class="material-symbols-outlined">info</text>
+            <text>确认后将对当前论文提交智能体审核，系统将在后台进行分析。</text>
+          </view>
+        </template>
+
+        <!-- 加载中 -->
+        <template v-else-if="agentUseModal.loading">
+          <view class="agent-use-icon agent-use-icon-loading">
+            <text class="material-symbols-outlined agent-spin">progress_activity</text>
+          </view>
+          <view class="agent-use-title">正在提交智能体审核...</view>
+          <view class="agent-use-student">学号 {{ agentUseModal.studentId || '未获取' }}</view>
+          <view class="agent-use-paper">当前论文：{{ agentUseModal.paperTitle || '当前论文' }}</view>
+          <view class="agent-use-desc">正在调用智能体接口，请稍候...</view>
+        </template>
+
+        <!-- 调用失败 -->
+        <template v-else-if="agentUseModal.error">
+          <view class="agent-use-icon agent-use-icon-error">
+            <text class="material-symbols-outlined">error_outline</text>
+          </view>
+          <view class="agent-use-title agent-use-title-error">调用失败</view>
+          <view class="agent-use-student">学号 {{ agentUseModal.studentId || '未获取' }}</view>
+          <view class="agent-use-paper">当前论文：{{ agentUseModal.paperTitle || '当前论文' }}</view>
+          <view class="agent-use-error-msg">{{ agentUseModal.error }}</view>
+        </template>
+
+        <!-- 提交成功 -->
+        <template v-else>
+          <view class="agent-use-icon">
+            <text class="material-symbols-outlined">smart_toy</text>
+          </view>
+          <view class="agent-use-title">智能体审核已提交</view>
+          <view class="agent-use-student">学号 {{ agentUseModal.studentId || '未获取' }}</view>
+          <view class="agent-use-paper">当前论文：{{ agentUseModal.paperTitle || '当前论文' }}</view>
+          <view v-if="agentUseModal.version" class="agent-use-desc">论文版本：{{ agentUseModal.version }}</view>
+          <view v-if="agentUseModal.taskId" class="agent-use-tip agent-use-success-tip">
+            <text class="material-symbols-outlined">task_alt</text>
+            <text v-if="agentUseModal.alreadySubmitted">该版本已提交过，任务ID：{{ agentUseModal.taskId }}</text>
+            <text v-else>任务已创建，任务ID：{{ agentUseModal.taskId }}</text>
+          </view>
+          <!-- 后端 MySQL写入异常但实际成功的提示 -->
+          <view v-if="agentUseModal.verifiedByQuery" class="agent-use-tip agent-use-verified-tip">
+            <text class="material-symbols-outlined">info</text>
+            <text>审核任务已创建，请前往「智能体报告」查看审核进度与结果。</text>
+          </view>
+          <view v-if="agentUseModal.alreadySubmitted" class="agent-use-tip agent-use-warn-tip">
+            <text class="material-symbols-outlined">info</text>
+            <text>同一版本论文只能提交一次，如需重新提交请更新论文版本。</text>
+          </view>
+          <view v-if="!agentUseModal.taskId" class="agent-use-tip">
+            <text class="material-symbols-outlined">auto_awesome</text>
+            <text>智能体已接收任务，正在后台处理中。</text>
+          </view>
+        </template>
+
+      </view>
+      <!-- 底部按钮：ready 阶段显示「取消 + 提交审查」，其他阶段显示「知道了」 -->
+      <view class="modal-footer agent-use-footer">
+        <template v-if="agentUseModal.ready">
+          <view class="btn btn-cancel" @click="closeAgentUseModal">取消</view>
+          <view class="btn btn-confirm agent-use-submit-btn" @click="doSubmitAgentAudit">
+            <text class="material-symbols-outlined">send</text>
+            <text>提交审查</text>
+          </view>
+        </template>
+        <view
+          v-else
+          class="btn btn-confirm"
+          :class="{ disabled: agentUseModal.loading }"
+          @click="!agentUseModal.loading && closeAgentUseModal()"
+        >{{ agentUseModal.loading ? '处理中...' : '知道了' }}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 智能体权限申请弹窗 -->
+  <view v-if="showAgentPermissionApplyModal" class="modal-backdrop" @click.self="closeAgentPermissionApplyModal">
+    <view class="modal-content agent-request-modal">
+      <view class="modal-header agent-request-header">
+        <text class="modal-title">智能体权限</text>
+        <text class="modal-close" @click="closeAgentPermissionApplyModal">×</text>
+      </view>
+      <view v-if="!agentPermissionApply.submitted" class="modal-body agent-request-modal-body">
+        <view class="agent-request-icon">
+          <text class="material-symbols-outlined">admin_panel_settings</text>
+        </view>
+        <view class="agent-request-title">申请智能体调用权限</view>
+        <view class="agent-request-desc">请输入管理员 ID，提交后系统会向对应管理员发送权限申请消息。</view>
+        <view class="agent-request-student">当前学号：{{ userInfo.username || '未获取' }}</view>
+        <view class="agent-request-form">
+          <text class="agent-request-label">管理员ID</text>
+          <input
+            class="agent-request-input"
+            v-model.trim="agentPermissionApply.adminId"
+            type="text"
+            maxlength="30"
+            placeholder="请输入管理员ID，例如 a123"
+            placeholder-class="agent-request-placeholder"
+          />
+          <text v-if="agentPermissionApply.error" class="agent-request-error">{{ agentPermissionApply.error }}</text>
+        </view>
+        <view class="agent-request-tip">
+          <text class="material-symbols-outlined">info</text>
+          <text>请先确认管理员 ID 填写正确，再提交权限申请。</text>
+        </view>
+      </view>
+      <view v-else class="modal-body agent-request-modal-body success-state">
+        <view class="agent-request-icon success">
+          <text class="material-symbols-outlined">mark_email_read</text>
+        </view>
+        <view class="agent-request-title">申请已提交</view>
+        <view class="agent-request-desc">{{ agentPermissionApply.message || '权限申请已提交，等待管理员审批。' }}</view>
+        <view class="agent-request-badge">管理员ID：{{ agentPermissionApply.submittedAdminId || '--' }}</view>
+        <view v-if="agentPermissionApply.studentName" class="agent-request-badge">姓名：{{ agentPermissionApply.studentName }}</view>
+        <view class="agent-request-badge">学号：{{ agentPermissionApply.studentNumber || userInfo.username || '--' }}</view>
+        <view v-if="agentPermissionApply.messageId" class="agent-request-tip success-tip">
+          <text class="material-symbols-outlined">alternate_email</text>
+          <text>消息编号：{{ agentPermissionApply.messageId }}</text>
+        </view>
+      </view>
+      <view class="modal-footer agent-request-footer">
+        <template v-if="!agentPermissionApply.submitted">
+          <view class="btn btn-cancel" @click="closeAgentPermissionApplyModal">取消</view>
+          <view class="btn btn-confirm" :class="{ disabled: agentPermissionApply.submitting }" @click="submitAgentPermissionApply">
+            {{ agentPermissionApply.submitting ? '提交中...' : '提交申请' }}
+          </view>
+        </template>
+        <view v-else class="btn btn-confirm" @click="closeAgentPermissionApplyModal">我知道了</view>
+      </view>
+    </view>
+  </view>
+  </view>
+
+  <!-- 智能体审核报告弹窗 -->
+  <view v-if="showAgentReportModal" class="modal-backdrop agent-report-backdrop" @click.self="closeAgentReportModal">
+    <view class="modal-content agent-report-modal">
+      <!-- 弹窗头部 -->
+      <view class="modal-header agent-report-header">
+        <view class="agent-report-header-left">
+          <view class="agent-report-header-icon">
+            <text class="material-symbols-outlined">summarize</text>
+          </view>
+          <view class="agent-report-header-text">
+            <text class="agent-report-header-title">智能体审核报告</text>
+            <text v-if="agentReport.version" class="agent-report-header-sub">版本 {{ agentReport.version }}</text>
+          </view>
+        </view>
+        <text class="modal-close" @click="closeAgentReportModal">&#215;</text>
+      </view>
+
+      <!-- 弹窗主体 -->
+      <view class="modal-body agent-report-body">
+
+        <!-- 全局加载中 -->
+        <view v-if="agentReport.loading" class="agent-report-loading">
+          <text class="material-symbols-outlined agent-spin">progress_activity</text>
+          <text class="agent-report-loading-text">正在查询任务信息...</text>
+        </view>
+
+        <!-- 无任务ID错误 -->
+        <view v-else-if="agentReport.taskError && !agentReport.taskId" class="agent-report-empty">
+          <view class="agent-report-empty-icon">
+            <text class="material-symbols-outlined">search_off</text>
+          </view>
+          <text class="agent-report-empty-title">未找到审核任务</text>
+          <text class="agent-report-empty-desc">{{ agentReport.taskError }}</text>
+          <text class="agent-report-empty-tip">请先在「智能体使用」中提交论文审核。</text>
+        </view>
+
+        <!-- 有任务ID：展示任务状态 + 报告 -->
+        <template v-else>
+          <!-- 任务元信息卡片 -->
+          <view class="agent-report-task-card">
+            <view class="agent-report-task-row">
+              <text class="agent-report-task-label">任务 ID</text>
+              <text class="agent-report-task-value agent-report-mono">{{ agentReport.taskId || '—' }}</text>
+            </view>
+            <view class="agent-report-task-row">
+              <text class="agent-report-task-label">状态</text>
+              <view class="agent-report-status-badge" :class="'agent-report-status-' + (agentReport.taskStatus || 'unknown').toLowerCase()">
+                <text class="material-symbols-outlined agent-spin" v-if="agentReport.taskStatus === 'processing' || agentReport.taskStatus === 'running' || agentReport.taskStatus === 'pending'">progress_activity</text>
+                <text class="material-symbols-outlined" v-else-if="isAgentTaskDone(agentReport.taskStatus)">check_circle</text>
+                <text class="material-symbols-outlined" v-else-if="isAgentTaskFailed(agentReport.taskStatus)">error_outline</text>
+                <text class="material-symbols-outlined" v-else>schedule</text>
+                <text>{{ agentReportTaskStatusLabel(agentReport.taskStatus) }}</text>
+              </view>
+            </view>
+            <view v-if="agentReport.taskProgress != null" class="agent-report-task-row">
+              <text class="agent-report-task-label">进度</text>
+              <view class="agent-report-progress-wrap">
+                <view class="agent-report-progress-bar">
+                  <view class="agent-report-progress-fill" :style="{ width: agentReport.taskProgress + '%' }"></view>
+                </view>
+                <text class="agent-report-progress-pct">{{ agentReport.taskProgress }}%</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 任务失败提示 -->
+          <view v-if="agentReport.taskError" class="agent-report-error-tip">
+            <text class="material-symbols-outlined">warning</text>
+            <text>{{ agentReport.taskError }}</text>
+          </view>
+
+          <!-- 报告内容区 -->
+          <view v-if="agentReport.payload" class="agent-report-content">
+
+            <!-- 概览行 -->
+            <view class="agent-report-summary-row">
+              <view v-if="agentReportIssuesCount != null" class="agent-report-stat-chip">
+                <text class="material-symbols-outlined">bug_report</text>
+                <text>共 {{ agentReportIssuesCount }} 个问题</text>
+              </view>
+              <view v-if="agentReportReferenceVerification.length" class="agent-report-stat-chip chip-teal">
+                <text class="material-symbols-outlined">import_contacts</text>
+                <text>参考文献 {{ agentReportReferenceVerification.length }} 条</text>
+              </view>
+              <view v-if="agentReportChunkReviews.length" class="agent-report-stat-chip chip-purple">
+                <text class="material-symbols-outlined">segment</text>
+                <text>{{ agentReportChunkReviews.length }} 个分段</text>
+              </view>
+            </view>
+
+            <!-- 参考文献核查 -->
+            <view v-if="agentReportReferenceVerification.length" class="agent-report-section">
+              <view class="agent-report-section-title">
+                <text class="material-symbols-outlined">import_contacts</text>
+                <text>参考文献核查</text>
+                <text class="agent-report-section-count">{{ agentReportReferenceVerification.length }} 条</text>
+              </view>
+              <view class="agent-report-ref-list">
+                <view
+                  v-for="(ref, rIdx) in agentReportReferenceVerification"
+                  :key="'ref-' + rIdx"
+                  class="agent-report-ref-item"
+                  :class="{ 'ref-issue': ref.has_issue || ref.hasIssue }"
+                >
+                  <view class="agent-report-ref-top">
+                    <text class="agent-report-ref-num">[{{ ref.index ?? ref.ref_index ?? (rIdx + 1) }}]</text>
+                    <text class="agent-report-ref-text">{{ ref.raw || ref.text || ref.content || '' }}</text>
+                  </view>
+                  <text v-if="ref.remark || ref.note" class="agent-report-ref-remark">{{ ref.remark || ref.note }}</text>
+                </view>
+              </view>
+            </view>
+
+            <!-- 分段问题 -->
+            <view v-if="agentReportChunkReviews.length" class="agent-report-section">
+              <view class="agent-report-section-title">
+                <text class="material-symbols-outlined">segment</text>
+                <text>分段问题</text>
+                <text class="agent-report-section-count">{{ agentReportChunkReviewsFiltered.length }} 段</text>
+              </view>
+
+              <!-- 问题类型筛选标签 -->
+              <view v-if="agentReportIssueTypes.length > 1" class="agent-report-filter-bar">
+                <text
+                  class="agent-report-filter-tag"
+                  :class="{ active: agentReport.issueTypeFilter === 'all' }"
+                  @click="agentReport.issueTypeFilter = 'all'"
+                >全部</text>
+                <text
+                  v-for="tp in agentReportIssueTypes"
+                  :key="tp"
+                  class="agent-report-filter-tag"
+                  :class="{ active: agentReport.issueTypeFilter === tp }"
+                  @click="agentReport.issueTypeFilter = tp"
+                >{{ formatAgentIssueType(tp) }}</text>
+              </view>
+
+              <!-- 分段列表 -->
+              <view
+                v-for="(chunk, cIdx) in agentReportChunkReviewsFiltered"
+                :key="'chunk-' + cIdx"
+                class="agent-report-chunk-item"
+              >
+                <view class="agent-report-chunk-head">
+                  <text class="material-symbols-outlined">article</text>
+                  <text>{{ agentReportChunkHeadLabel(chunk, cIdx) }}</text>
+                  <text class="agent-report-chunk-count">{{ agentReportChunkIssueCount(chunk) }} 条</text>
+                </view>
+                <view
+                  v-for="(iss, iIdx) in agentReportChunkIssuesFiltered(chunk)"
+                  :key="'iss-' + cIdx + '-' + iIdx"
+                  class="agent-report-issue"
+                >
+                  <view class="agent-report-issue-type-badge">{{ formatAgentIssueType(iss.issue_type || iss.issueType) }}</view>
+                  <text class="agent-report-issue-msg">{{ iss.message || iss.msg || '' }}</text>
+                  <text v-if="iss.suggestion" class="agent-report-issue-sug">建议：{{ iss.suggestion }}</text>
+                </view>
+                <view v-if="agentReportChunkIssuesFiltered(chunk).length === 0" class="agent-report-chunk-empty">
+                  <text>该分段无符合筛选条件的问题</text>
+                </view>
+              </view>
+            </view>
+
+            <!-- 报告为空时的占位 -->
+            <view v-if="!agentReportChunkReviews.length && !agentReportReferenceVerification.length" class="agent-report-no-issues">
+              <text class="material-symbols-outlined">check_circle</text>
+              <text>未检测到明显问题，论文质量良好！</text>
+            </view>
+          </view>
+
+          <!-- 任务未完成时的提示 -->
+          <view v-else-if="!agentReport.taskStatus || (!isAgentTaskDone(agentReport.taskStatus) && !isAgentTaskFailed(agentReport.taskStatus))" class="agent-report-pending-hint">
+            <text class="material-symbols-outlined">hourglass_top</text>
+            <text>智能体正在分析中，请点击下方「查询进度」刷新状态。</text>
+          </view>
+
+        </template>
+      </view>
+
+      <!-- 弹窗底部 -->
+      <view class="modal-footer agent-report-footer">
+        <view class="btn btn-cancel" @click="closeAgentReportModal">关闭</view>
+        <view
+          v-if="agentReport.taskId && !agentReport.payload"
+          class="btn btn-confirm agent-report-query-btn"
+          :class="{ disabled: agentReport.queryLoading }"
+          @click="!agentReport.queryLoading && fetchAgentReportTaskStatus()"
+        >
+          <text v-if="agentReport.queryLoading" class="material-symbols-outlined agent-spin">progress_activity</text>
+          <text v-else class="material-symbols-outlined">refresh</text>
+          <text>{{ agentReport.queryLoading ? '查询中...' : '查询进度' }}</text>
+        </view>
+        <view
+          v-if="agentReport.payload"
+          class="btn btn-confirm agent-report-refresh-btn"
+          :class="{ disabled: agentReport.queryLoading }"
+          @click="!agentReport.queryLoading && fetchAgentReportTaskStatus()"
+        >
+          <text class="material-symbols-outlined">refresh</text>
+          <text>刷新报告</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
 </template>
 
 <script>
-import { getPaperList, deletePaper, getAnnotationsByPaperId, updatePaperVersion, getPaperDetail, updatePaperStatus, getTeacherByStudentId, getPaperReview } from '../../api/student.js';
+import { getPaperList, deletePaper, getAnnotationsByPaperId, updatePaperVersion, getPaperDetail, updatePaperStatus, getTeacherByStudentId, getPaperReview, checkAgentPermission, requestAgentPermission, changePassword, callAgentAudit, getAgentTaskByPaper, getAgentTask, getAgentReport } from '../../api/student.js';
 import { getUserId, isValidUserId, checkLogin } from '../../utils/auth.js';
 import { AsyncQueue, debounce } from '../../utils/performance.js';
 import {
@@ -475,7 +825,6 @@ import {
 
 import WordPreview from '../../components/WordPreview.vue';
 import ConfirmModal from '../../components/ConfirmModal.vue';
-import { changePassword } from '../../api/student.js';
 import { config } from '../../api/config.js';
 import { clearLoginState } from '../../utils/auth.js';
 
@@ -488,7 +837,7 @@ export default {
     return {
       // 页面淡出状态（跳转动画）
       isPageFadeOut: false,
-      /** 论文展示三态（与 utils/studentPaperDisplayStatus 一致，供模板侧栏排序/统计） */
+      /** 论文展示三态（与 utils/studentPaperDisplayStatus 一致，供模板侧栏统计） */
       displayStatusBuckets: STUDENT_DISPLAY_BUCKETS,
       paperList: [],
       loading: true,
@@ -507,17 +856,11 @@ export default {
         username: '',
         college: '学院'
       },
-      // 当前排序状态
-      activeSort: null,
-      // 保存原始顺序用于恢复
-      originalPaperList: [],
       // 论文列表刷新key
       paperListKey: 0,
       showAnnotationModal: false,
       currentPaper: null,
       annotations: [],
-      // 论文卡片折叠状态
-      collapsedPapers: {},
       // 更新论文相关
       showUpdateModal: false,
       updatePaperItem: null,
@@ -575,18 +918,56 @@ export default {
       ],
       // 用户卡片
       showUserCard: false,
-      
       // 修改密码弹窗
       showPasswordModal: false,
       passwordForm: {
-        oldPassword: '',
+        currentPassword: '',
         newPassword: '',
         confirmPassword: ''
       },
       passwordError: '',
-      
-      // 关于系统弹窗
-      showAboutModal: false
+      // 智能体权限提示弹窗
+      showAgentPermissionModal: false,
+      agentPermissionStudentId: '',
+      showAgentUseModal: false,
+      agentUseModal: {
+        studentId: '',
+        paperTitle: '当前论文',
+        ready: false,
+        paper: null,
+        loading: false,
+        taskId: '',
+        version: '',
+        error: '',
+        alreadySubmitted: false,
+        verifiedByQuery: false
+      },
+      showAgentPermissionApplyModal: false,
+      agentPermissionApply: {
+        adminId: '',
+        error: '',
+        submitting: false,
+        submitted: false,
+        message: '',
+        submittedAdminId: '',
+        studentNumber: '',
+        studentName: '',
+        messageId: ''
+      },
+      // 智能体报告弹窗
+      showAgentReportModal: false,
+      agentReport: {
+        loading: false,
+        taskId: null,
+        taskStatus: '',
+        taskProgress: null,
+        taskError: '',
+        payload: null,
+        queryLoading: false,
+        issueTypeFilter: 'all',
+        paper: null,
+        version: ''
+      }
     };
   },
   computed: {
@@ -604,10 +985,63 @@ export default {
       }
       return this.paperList.filter(paper => paper.status === f);
     },
+    sidebarAgentPaper() {
+      return this.paperList[0] || null;
+    },
     // 用户名首字母
     userNameInitial() {
       const displayName = this.userInfo.full_name || this.userInfo.name || '学';
       return displayName.charAt(0);
+    },
+    // 智能体报告 - 问题总数
+    agentReportIssuesCount() {
+      const p = this.agentReport.payload;
+      if (!p) return null;
+      if (p.issues_count != null) return p.issues_count;
+      if (p.issuesCount != null) return p.issuesCount;
+      const ar = p.ai_review || p.aiReview;
+      const sum = ar && ar.summary;
+      if (sum && typeof sum === 'object' && sum.chunk_issue_count != null) return sum.chunk_issue_count;
+      return null;
+    },
+    // 智能体报告 - 分段审查列表
+    agentReportChunkReviews() {
+      const p = this.agentReport.payload;
+      if (!p) return [];
+      const list = p.chunk_reviews || p.chunkReviews;
+      if (Array.isArray(list) && list.length > 0) return list;
+      const parsed = (p.parse_result && p.parse_result.data) || p.parse_result || {};
+      const sections = parsed.sections;
+      return Array.isArray(sections) ? sections : [];
+    },
+    // 智能体报告 - 问题类型列表
+    agentReportIssueTypes() {
+      const types = new Set();
+      for (const chunk of this.agentReportChunkReviews) {
+        const issues = chunk.issues || chunk.llm_issues || chunk.local_issues || [];
+        for (const iss of issues) {
+          const t = iss.issue_type || iss.issueType;
+          if (t) types.add(t.toLowerCase());
+        }
+      }
+      return Array.from(types);
+    },
+    // 智能体报告 - 筛选后的分段列表
+    agentReportChunkReviewsFiltered() {
+      const all = this.agentReportChunkReviews;
+      const filter = this.agentReport.issueTypeFilter;
+      if (!filter || filter === 'all') return all;
+      return all.filter(chunk => {
+        const issues = chunk.issues || chunk.llm_issues || chunk.local_issues || [];
+        return issues.some(iss => (iss.issue_type || iss.issueType || '').toLowerCase() === filter);
+      });
+    },
+    // 智能体报告 - 参考文献核查
+    agentReportReferenceVerification() {
+      const p = this.agentReport.payload;
+      if (!p) return [];
+      const r = p.reference_verification || p.referenceVerification;
+      return Array.isArray(r) ? r : [];
     }
   },
   async onLoad() {
@@ -619,8 +1053,6 @@ export default {
     this.loadUserInfo();
     // 首次加载显示 loading
     await this.getPaperList(true);
-    // 加载折叠状态
-    this.loadCollapseState();
     // 检查是否有目标论文ID（从工作台跳转过来）
     this.checkAndNavigateToTargetPaper();
     this._skipNextShow = true;
@@ -680,30 +1112,318 @@ export default {
       }, 1000);
     },
     
-    // 跳转到修改密码页面
+    // 打开修改密码弹窗
     openChangePassword() {
       this.showUserCard = false;
+      this.passwordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
+      this.passwordError = '';
       this.showPasswordModal = true;
     },
 
     openAboutModal() {
       this.showUserCard = false;
-      this.showAboutModal = true;
+      uni.showToast({
+        title: '当前为论文管理系统v1.0版本',
+        icon: 'none'
+      });
+    },
+
+    openAgentPermissionModal(studentId) {
+      this.agentPermissionStudentId = studentId || '';
+      this.showAgentPermissionModal = true;
+    },
+
+    closeAgentPermissionModal() {
+      this.showAgentPermissionModal = false;
+      this.agentPermissionStudentId = '';
+    },
+
+    openAgentUseModal(studentId, paperTitle) {
+      this.agentUseModal = {
+        studentId: studentId || '',
+        paperTitle: paperTitle || '当前论文'
+      };
+      this.showAgentUseModal = true;
+    },
+
+    closeAgentUseModal() {
+      this.showAgentUseModal = false;
+      this.agentUseModal = {
+        studentId: '',
+        paperTitle: '当前论文',
+        ready: false,
+        paper: null,
+        loading: false,
+        taskId: '',
+        version: '',
+        error: '',
+        alreadySubmitted: false,
+        verifiedByQuery: false
+      };
+    },
+
+    resetAgentPermissionApplyState() {
+      this.agentPermissionApply = {
+        adminId: '',
+        error: '',
+        submitting: false,
+        submitted: false,
+        message: '',
+        submittedAdminId: '',
+        studentNumber: '',
+        studentName: '',
+        messageId: ''
+      };
+    },
+
+    openAgentPermissionApplyModal() {
+      this.showUserCard = false;
+      this.resetAgentPermissionApplyState();
+      this.showAgentPermissionApplyModal = true;
+    },
+
+    // 打开智能体报告弹窗
+    async openAgentReportModal() {
+      const paper = this.sidebarAgentPaper;
+      if (!paper) {
+        uni.showToast({ title: '暂无论文可查询', icon: 'none' });
+        return;
+      }
+
+      // 获取版本
+      let version = '';
+      const detailCache = uni.getStorageSync(`paperDetail_${paper.id}`);
+      if (detailCache && detailCache.version) {
+        version = detailCache.version;
+      } else {
+        const rawVersion = paper.version || '1.0';
+        version = rawVersion.startsWith('v') ? rawVersion : `v${rawVersion}`;
+      }
+
+      // 从缓存读取 task_id
+      let taskId = null;
+      const taskInfoCache = uni.getStorageSync(`agentTaskInfo_${paper.id}_${version}`);
+      const auditCache = uni.getStorageSync(`agentAudit_${paper.id}_${version}`);
+      if (taskInfoCache && taskInfoCache.task_id) {
+        taskId = taskInfoCache.task_id;
+      } else if (auditCache && auditCache.taskId) {
+        taskId = auditCache.taskId;
+      }
+
+      // 初始化弹窗状态
+      this.agentReport = {
+        loading: !taskId,
+        taskId,
+        taskStatus: '',
+        taskProgress: null,
+        taskError: '',
+        payload: null,
+        queryLoading: false,
+        issueTypeFilter: 'all',
+        paper,
+        version
+      };
+      this.showAgentReportModal = true;
+
+      // 没有 task_id 时，调用 by-paper 接口获取
+      if (!taskId) {
+        try {
+          const res = await getAgentTaskByPaper(paper.id, version);
+          const data = this.unwrapAgentPayload(res);
+          taskId = data?.task_id ?? data?.id ?? null;
+          if (taskId) {
+            this.agentReport.taskId = taskId;
+            try { uni.setStorageSync(`agentTaskInfo_${paper.id}_${version}`, { task_id: taskId, paper_id: paper.id, version }); } catch (e) {}
+          } else {
+            this.agentReport.loading = false;
+            this.agentReport.taskError = '未找到该版本的审核任务，请先在「智能体使用」中提交审核。';
+            return;
+          }
+        } catch (e) {
+          this.agentReport.loading = false;
+          this.agentReport.taskError = e?.message || '查询任务失败';
+          return;
+        }
+      }
+
+      // 有 task_id 后查询任务状态
+      this.agentReport.loading = false;
+      await this.fetchAgentReportTaskStatus();
+    },
+
+    closeAgentReportModal() {
+      this.showAgentReportModal = false;
+      this.agentReport = {
+        loading: false, taskId: null, taskStatus: '', taskProgress: null,
+        taskError: '', payload: null, queryLoading: false, issueTypeFilter: 'all',
+        paper: null, version: ''
+      };
+    },
+
+    // 查询任务进度（底部按钟触发）
+    async fetchAgentReportTaskStatus() {
+      if (!this.agentReport.taskId) return;
+      this.agentReport.queryLoading = true;
+      this.agentReport.taskError = '';
+      try {
+        const raw = await getAgentTask(this.agentReport.taskId);
+        const t = this.unwrapAgentPayload(raw);
+        this.agentReport.taskStatus = t?.status || '';
+        this.agentReport.taskProgress = t?.progress != null ? Number(t.progress) : null;
+        const errMsg = t?.error_message ?? t?.errorMessage;
+        if (errMsg) this.agentReport.taskError = String(errMsg);
+        if (this.isAgentTaskDone(this.agentReport.taskStatus)) {
+          await this.fetchAgentReportData();
+        } else if (this.isAgentTaskFailed(this.agentReport.taskStatus)) {
+          this.agentReport.taskError = this.agentReport.taskError || '智能体分析失败';
+        }
+      } catch (e) {
+        this.agentReport.taskError = e?.message || '查询进度失败';
+      } finally {
+        this.agentReport.queryLoading = false;
+      }
+    },
+
+    // 拉取报告 JSON 数据
+    async fetchAgentReportData() {
+      if (!this.agentReport.taskId) return;
+      this.agentReport.queryLoading = true;
+      try {
+        const raw = await getAgentReport(this.agentReport.taskId);
+        const rep = this.unwrapAgentPayload(raw);
+        this.agentReport.payload = rep && typeof rep === 'object' ? rep : null;
+        if (!this.agentReport.payload) throw new Error('报告数据为空');
+      } catch (e) {
+        this.agentReport.taskError = e?.message || '获取报告失败';
+      } finally {
+        this.agentReport.queryLoading = false;
+      }
+    },
+
+    // 解包 API 响应数据
+    unwrapAgentPayload(res) {
+      if (res == null || typeof res !== 'object') return res;
+      const d = res.data;
+      if (d && typeof d === 'object' && !Array.isArray(d) && (
+        d.task_id != null || d.status != null || d.paper_id != null ||
+        d.chunk_reviews != null || d.parse_result != null || d.ai_review != null || d.issues_count != null
+      )) return d;
+      if (d && typeof d === 'object' && d.data && typeof d.data === 'object') {
+        const inner = d.data;
+        if (inner.chunk_reviews != null || inner.parse_result != null ||
+            Array.isArray(inner.sections) || inner.ai_review != null || inner.issues_count != null)
+          return inner;
+      }
+      return res;
+    },
+
+    isAgentTaskDone(status) {
+      const s = (status || '').toLowerCase();
+      return s === 'done' || s === 'completed' || s === 'success';
+    },
+    isAgentTaskFailed(status) {
+      const s = (status || '').toLowerCase();
+      return s === 'failed' || s === 'error';
+    },
+    agentReportTaskStatusLabel(status) {
+      const map = {
+        pending: '排队中', processing: '分析中', running: '分析中',
+        done: '已完成', completed: '已完成', success: '已完成',
+        failed: '失败', error: '失败'
+      };
+      return map[(status || '').toLowerCase()] || status || '—';
+    },
+    agentReportChunkIssueCount(chunk) {
+      if (!chunk) return 0;
+      if (chunk.issue_count != null) return Number(chunk.issue_count);
+      const arr = chunk.issues || chunk.llm_issues || chunk.local_issues || [];
+      return Array.isArray(arr) ? arr.length : 0;
+    },
+    agentReportChunkIssuesFiltered(chunk) {
+      if (!chunk) return [];
+      const a = chunk.issues || chunk.llm_issues;
+      const raw = (Array.isArray(a) && a.length > 0) ? a : (Array.isArray(chunk.local_issues) ? chunk.local_issues : []);
+      const filter = this.agentReport.issueTypeFilter;
+      if (!filter || filter === 'all') return raw;
+      return raw.filter(iss => (iss.issue_type || iss.issueType || '').toLowerCase() === filter);
+    },
+    agentReportChunkHeadLabel(chunk, cIdx) {
+      const sid = chunk?.section_id ?? chunk?.sectionId ?? cIdx + 1;
+      return `段 ${sid}`;
+    },
+    formatAgentIssueType(type) {
+      const map = {
+        'format': '格式问题', 'typo': '拼写/错别字', 'logic': '逻辑问题',
+        'reference': '参考文献', 'structure': '结构问题', 'language': '语言表达',
+        'content': '内容问题', 'data': '数据问题', 'figure': '图表问题',
+        'table': '表格问题', 'math': '公式问题', 'citation': '引用格式',
+        'plagiarism': '重复内容', 'completeness': '内容完整性', 'other': '其他问题',
+        'missing_required': '缺失必填项', 'placeholder_unchecked': '占位符未替换',
+        'format_error': '格式错误', 'value_invalid': '字段値无效'
+      };
+      return map[(type || '').toLowerCase()] || type || '问题';
+    },
+
+    closeAgentPermissionApplyModal() {
+      this.showAgentPermissionApplyModal = false;
+      this.resetAgentPermissionApplyState();
+    },
+
+    async submitAgentPermissionApply() {
+      if (this.agentPermissionApply.submitting) {
+        return;
+      }
+
+      const adminId = String(this.agentPermissionApply.adminId || '').trim();
+      if (!adminId) {
+        this.agentPermissionApply.error = '请输入管理员ID';
+        return;
+      }
+
+      this.agentPermissionApply.error = '';
+      this.agentPermissionApply.submitting = true;
+      uni.showLoading({ title: '提交中...', mask: true });
+
+      try {
+        const res = await requestAgentPermission(adminId);
+        const payload = res?.data && typeof res.data === 'object' ? res.data : res;
+
+        this.agentPermissionApply = {
+          adminId,
+          error: '',
+          submitting: false,
+          submitted: true,
+          message: payload?.message || '权限申请已提交，等待管理员审批。',
+          submittedAdminId: adminId,
+          studentNumber: payload?.student_number || this.userInfo.username || '',
+          studentName: payload?.student_name || this.userInfo.full_name || this.userInfo.name || '',
+          messageId: payload?.message_id || ''
+        };
+      } catch (error) {
+        this.agentPermissionApply.error =
+          error?.message ||
+          error?.detail ||
+          error?.response?.message ||
+          '提交申请失败，请稍后重试';
+        this.agentPermissionApply.submitting = false;
+      } finally {
+        uni.hideLoading();
+      }
     },
     
     // 关闭修改密码弹窗
     closePasswordModal() {
       this.showPasswordModal = false;
-      this.passwordForm = { oldPassword: '', newPassword: '', confirmPassword: '' };
+      this.passwordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
       this.passwordError = '';
     },
     
     // 提交修改密码
     async submitChangePassword() {
-      const { oldPassword, newPassword, confirmPassword } = this.passwordForm;
+      const { currentPassword, newPassword, confirmPassword } = this.passwordForm;
       
-      // 密码表单验证
-      if (!oldPassword) {
+      // 密码表单验证（生产环境不输出密码信息）
+      if (!currentPassword) {
         this.passwordError = '请输入当前密码';
         return;
       }
@@ -719,7 +1439,7 @@ export default {
         this.passwordError = '两次输入的新密码不一致';
         return;
       }
-      if (oldPassword === newPassword) {
+      if (currentPassword === newPassword) {
         this.passwordError = '新密码不能与当前密码相同';
         return;
       }
@@ -734,13 +1454,13 @@ export default {
         uni.showLoading({ title: '修改中...', mask: true });
         
         const res = await changePassword({
-          old_password: oldPassword,
+          old_password: currentPassword,
           new_password: newPassword
         });
         
         uni.hideLoading();
         
-        // 判断修改成功
+        // 判断修改成功（后端返回 message 或 HTTP 状态码为 200）
         if (res && (res.message?.includes('成功') || res.code === 200)) {
           uni.showToast({ title: '密码修改成功，请重新登录', icon: 'success', duration: 2000 });
           this.closePasswordModal();
@@ -749,6 +1469,7 @@ export default {
             uni.reLaunch({ url: '/pages/index/index' });
           }, 2000);
         } else {
+          // 显示后端返回的错误信息
           this.passwordError = res?.detail || res?.message || '密码修改失败';
         }
       } catch (err) {
@@ -835,14 +1556,7 @@ export default {
         
         if (targetPaper) {
           console.log('[论文列表] 找到目标论文:', targetPaper.title);
-          
-          // 确保论文卡片是展开状态
-          if (this.collapsedPapers[targetPaperId]) {
-            this.$set(this.collapsedPapers, targetPaperId, false);
-            this.saveCollapseState();
-            await this.$nextTick();
-          }
-          
+
           // 设置高亮状态
           this.highlightedPaperId = targetPaperId;
           
@@ -1309,6 +2023,9 @@ export default {
               this.$set(this.paperList[index], 'updateTime', detail.updated_at);
             }
                 
+            // 缓存论文详情（含 version），供智能体调用时使用
+            try { uni.setStorageSync(`paperDetail_${id}`, detail); } catch (e) {}
+
             // 构建并更新状态历史记录（基于后端返回的真实状态）
             const statusHistory = this.buildStatusHistory(detail);
             this.$set(this.paperList[index], 'statusHistory', statusHistory);
@@ -1436,41 +2153,16 @@ export default {
       return englishMap[normalized] || normalized;
     },
     
-    sortPapersByStatus(status) {
-      // 如果点击的是当前已激活的状态，则取消排序
-      if (this.activeSort === status) {
-        this.activeSort = null;
-        // 恢复原始顺序
-        if (this.originalPaperList && this.originalPaperList.length > 0) {
-          this.paperList = JSON.parse(JSON.stringify(this.originalPaperList));
-        }
+    handleSidebarAgentUse() {
+      if (!this.sidebarAgentPaper) {
+        uni.showToast({
+          title: '暂无论文可使用智能体',
+          icon: 'none'
+        });
         return;
       }
-      
-      // 首次排序时保存原始顺序（深拷贝）
-      if (!this.originalPaperList || this.originalPaperList.length === 0) {
-        this.originalPaperList = JSON.parse(JSON.stringify(this.paperList));
-      }
-      
-      this.activeSort = status;
-      
-      const sourceList = JSON.parse(JSON.stringify(this.originalPaperList));
-      const bucketKeys = Object.values(STUDENT_DISPLAY_BUCKETS);
-      if (bucketKeys.includes(status)) {
-        const matchingPapers = sourceList.filter(
-          p => mapBackendStatusToStudentDisplayBucket(p.status) === status
-        );
-        const nonMatchingPapers = sourceList.filter(
-          p => mapBackendStatusToStudentDisplayBucket(p.status) !== status
-        );
-        this.paperList = [...matchingPapers, ...nonMatchingPapers];
-        return;
-      }
-      
-      const normalizedTarget = this.normalizeStatus(status);
-      const matchingPapers = sourceList.filter(p => this.normalizeStatus(p.status) === normalizedTarget);
-      const nonMatchingPapers = sourceList.filter(p => this.normalizeStatus(p.status) !== normalizedTarget);
-      this.paperList = [...matchingPapers, ...nonMatchingPapers];
+
+      this.handleAgentUse(this.sidebarAgentPaper);
     },
     
     /**
@@ -1571,11 +2263,180 @@ export default {
       this.showReviewModal = false;
       this.currentReview = null;
     },
+
+    async handleAgentUse(paper) {
+      if (!paper) {
+        uni.showToast({
+          title: '暂无论文可使用智能体',
+          icon: 'none'
+        });
+        return;
+      }
+
+      const studentId = this.userInfo.username || uni.getStorageSync('userInfo')?.username || '';
+      if (!studentId) {
+        uni.showToast({
+          title: '未获取到学生学号',
+          icon: 'none'
+        });
+        return;
+      }
+
+      uni.showLoading({ title: '检查权限中...', mask: true });
+
+      try {
+        const res = await checkAgentPermission(studentId);
+        uni.hideLoading();
+
+        const payload = res?.data && typeof res.data === 'object' ? res.data : res;
+        const permissionValue = Number(payload?.agent_permission);
+
+        if (permissionValue === 1) {
+          this.startAgentUseFlow(paper, studentId);
+          return;
+        }
+
+        this.openAgentPermissionModal(studentId);
+      } catch (error) {
+        uni.hideLoading();
+        uni.showToast({
+          title: error?.message || '智能体权限检查失败',
+          icon: 'none'
+        });
+      }
+    },
+
+    // 有权限时：打开确认弹窗（不直接调用API）
+    startAgentUseFlow(paper, studentId) {
+      const paperTitle = paper?.title ? `《${paper.title}》` : '当前论文';
+      this.agentUseModal = {
+        studentId: studentId || '',
+        paperTitle,
+        ready: true,
+        paper,
+        loading: false,
+        taskId: '',
+        version: '',
+        error: '',
+        alreadySubmitted: false
+      };
+      this.showAgentUseModal = true;
+    },
+
+    // 学生主动点击「提交审查」后才调用API
+    async doSubmitAgentAudit() {
+      const paper = this.agentUseModal.paper;
+      if (!paper) return;
+
+      // 进入 loading 状态
+      this.agentUseModal.ready = false;
+      this.agentUseModal.loading = true;
+      this.agentUseModal.error = '';
+
+      // 将 version 和 auditCacheKey 提到 try 外，让 catch 也能访问
+      let version = '';
+      let auditCacheKey = '';
+
+      try {
+        // 优先读取缓存的论文详情（含 version）
+        const cacheKey = `paperDetail_${paper.id}`;
+        const cachedDetail = uni.getStorageSync(cacheKey);
+
+        if (cachedDetail && cachedDetail.version) {
+          version = cachedDetail.version;
+        } else {
+          const detail = await getPaperDetail(paper.id);
+          if (detail && detail.version) {
+            version = detail.version;
+            try { uni.setStorageSync(cacheKey, detail); } catch (e) {}
+          } else {
+            const rawVersion = paper.version || '1.0';
+            version = rawVersion.startsWith('v') ? rawVersion : `v${rawVersion}`;
+          }
+        }
+
+        this.$set(this.agentUseModal, 'version', version);
+        auditCacheKey = `agentAudit_${paper.id}_${version}`;
+
+        // 防止同一论文+版本重复提交
+        const existingAudit = uni.getStorageSync(auditCacheKey);
+        if (existingAudit && existingAudit.taskId) {
+          this.agentUseModal = {
+            ...this.agentUseModal,
+            loading: false,
+            taskId: existingAudit.taskId,
+            error: '',
+            alreadySubmitted: true
+          };
+          return;
+        }
+
+        // 调用 /api/v1/agent/audit 提交审核任务
+        const auditRes = await callAgentAudit(paper.id, version);
+        const taskId = auditRes?.task_id || auditRes?.data?.task_id || '';
+
+        // 缓存提交记录
+        try { uni.setStorageSync(auditCacheKey, { taskId, submittedAt: new Date().toISOString() }); } catch (e) {}
+
+        this.agentUseModal = {
+          ...this.agentUseModal,
+          loading: false,
+          taskId,
+          error: '',
+          verifiedByQuery: false
+        };
+      } catch (error) {
+        const errMsg = error?.message || error?.detail || String(error || '');
+        // 后端已知bug：无论成功失败均返回该报错信息
+        const isMysqlWriteError = errMsg.includes('任务记录未成功写入 MySQL') ||
+                                   errMsg.includes('任务记录未成功写入');
+
+        if (isMysqlWriteError && version) {
+          // 尝试通过 by-paper 接口验证是否实际提交成功
+          try {
+            const checkRes = await getAgentTaskByPaper(paper.id, version);
+            const data = this.unwrapAgentPayload(checkRes);
+            const taskId = data?.task_id ?? data?.id ?? null;
+
+            if (taskId) {
+              // 接口返回了 task_id → 实际提交成功，写入缓存
+              try {
+                if (auditCacheKey) {
+                  uni.setStorageSync(auditCacheKey, { taskId: String(taskId), submittedAt: new Date().toISOString() });
+                }
+                uni.setStorageSync(`agentTaskInfo_${paper.id}_${version}`, { task_id: taskId, paper_id: paper.id, version });
+              } catch (e) {}
+
+              this.agentUseModal = {
+                ...this.agentUseModal,
+                loading: false,
+                taskId: String(taskId),
+                error: '',
+                verifiedByQuery: true
+              };
+              return;
+            }
+          } catch (checkErr) {
+            // by-paper 接口也异常，属于真正失败
+          }
+
+          // by-paper 没有返回 task_id → 真正提交失败
+          this.agentUseModal = {
+            ...this.agentUseModal,
+            loading: false,
+            error: '提交失败，后端服务异常，请稍后重试'
+          };
+        } else {
+          this.agentUseModal = {
+            ...this.agentUseModal,
+            loading: false,
+            error: errMsg || '智能体调用失败，请稍后重试'
+          };
+        }
+      }
+    },
     
     async getPaperList(showLoading = true) {
-      // 重置排序状态和原始顺序缓存
-      this.activeSort = null;
-      this.originalPaperList = [];
       const userInfo = uni.getStorageSync('userInfo') || {};
       const numericUserId = parseInt(userInfo.sub || 0, 10);
       
@@ -2206,44 +3067,6 @@ export default {
       this.showAnnotationModal = false;
       this.currentPaper = null;
       this.annotations = [];
-    },
-    
-    
-    // 切换论文卡片折叠状态
-    toggleCollapse(paperId, event) {
-      if (event) {
-        event.stopPropagation();
-        event.preventDefault();
-      }
-      this.$set(this.collapsedPapers, paperId, !this.collapsedPapers[paperId]);
-      // 保存折叠状态到本地存储
-      this.saveCollapseState();
-    },
-    
-    // 检查论文是否已折叠
-    isCollapsed(paperId) {
-      return !!this.collapsedPapers[paperId];
-    },
-    
-    // 保存折叠状态到本地存储
-    saveCollapseState() {
-      try {
-        uni.setStorageSync('paperListCollapsedState', this.collapsedPapers);
-      } catch (error) {
-        console.error('保存折叠状态失败:', error);
-      }
-    },
-    
-    // 从本地存储加载折叠状态
-    loadCollapseState() {
-      try {
-        const savedState = uni.getStorageSync('paperListCollapsedState');
-        if (savedState && typeof savedState === 'object') {
-          this.collapsedPapers = savedState;
-        }
-      } catch (error) {
-        console.error('加载折叠状态失败:', error);
-      }
     }
   }
 };
@@ -2702,45 +3525,6 @@ export default {
   transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* ==================== 激活状态过渡优化 ==================== */
-.stat-item.active {
-  background: var(--primary);
-  box-shadow: var(--shadow-primary);
-  animation: activePulse 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes activePulse {
-  0% { transform: scale(0.95); }
-  50% { transform: scale(1.02); }
-  100% { transform: scale(1); }
-}
-
-.stat-item.active .stat-value {
-  animation: countUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes countUp {
-  0% { transform: scale(0.8); opacity: 0.5; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-.stat-item.active::before {
-  background: #ffffff;
-}
-
-.stat-item.active .stat-icon {
-  background-color: rgba(255, 255, 255, 0.3);
-  color: #ffffff;
-}
-
-.stat-item.active .stat-label {
-  color: #ffffff;
-}
-
-.stat-item.active .stat-value {
-  color: #ffffff;
-}
-
 /* ==================== 统计图标动画优化 ==================== */
 .stat-icon {
   font-size: 44rpx;
@@ -2767,10 +3551,6 @@ export default {
   color: #fff;
 }
 
-.stat-item.active:hover .stat-icon {
-  transform: scale(1.1);
-}
-
 .stat-content {
   flex: 1;
   display: flex;
@@ -2794,6 +3574,66 @@ export default {
 
 .stat-item:hover .stat-value {
   color: var(--primary);
+}
+
+.agent-stat-item .stat-icon {
+  background-color: rgba(8, 151, 156, 0.12);
+  color: #08979c;
+}
+
+.agent-stat-item:hover .stat-icon {
+  background-color: #08979c;
+  color: #fff;
+}
+
+.agent-stat-title {
+  font-size: 28rpx;
+  color: var(--on-surface);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.agent-stat-desc {
+  font-size: 22rpx;
+  color: var(--on-surface-variant);
+  line-height: 1.5;
+}
+
+.agent-stat-item.disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.agent-stat-item.disabled:hover {
+  transform: none;
+  box-shadow: var(--shadow-sm);
+  background: var(--surface-container-low);
+}
+
+.agent-stat-item.disabled:hover .stat-icon {
+  transform: none;
+  background-color: rgba(8, 151, 156, 0.12);
+  color: #08979c;
+}
+
+.agent-permission-entry .stat-icon {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+}
+
+.agent-permission-entry:hover .stat-icon {
+  background-color: #d97706;
+  color: #fff;
+}
+
+.agent-report-entry .stat-icon {
+  background-color: rgba(99, 102, 241, 0.12);
+  color: #4f46e5;
+}
+
+.agent-report-entry:hover .stat-icon {
+  background-color: #4f46e5;
+  color: #fff;
 }
 
 /* ==================== 侧边栏菜单动画优化 ==================== */
@@ -3093,101 +3933,19 @@ export default {
   border-bottom: 1px solid var(--surface-container-high);
 }
 
-/* 头部右侧区域（获取状态按钮+折叠按钮） */
+/* 头部右侧区域 */
 .paper-header-actions {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  justify-content: center;
+  align-self: stretch;
   gap: 12rpx;
   flex-shrink: 0;
 }
 
-/* ==================== 折叠按钮动画优化 ==================== */
-.collapse-btn {
-  width: calc(50% - 12rpx);
-  min-width: 60rpx;
-  height: 36rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--primary-fixed);
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  transition: 
-    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
-    box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-    background 0.3s ease;
-  border: 1px solid var(--primary-fixed);
-  flex-shrink: 0;
-  box-shadow: var(--shadow-sm);
-  position: relative;
-  overflow: hidden;
-  z-index: 10;
-  pointer-events: auto;
-}
-
-.collapse-btn::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  background: var(--primary-fixed);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1), height 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-  pointer-events: none;
-}
-
-.collapse-btn:active::before {
-  width: 100rpx;
-  height: 100rpx;
-}
-
-.collapse-btn:hover {
-  background: var(--surface-container-low);
-  transform: scale(1.15);
-  box-shadow: var(--shadow-primary);
-}
-
-.collapse-btn:active {
-  transform: scale(0.92);
-  transition: transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* ==================== 折叠图标动画优化 ==================== */
-.collapse-icon {
-  font-size: 20rpx;
-  color: var(--primary);
-  transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-  display: block;
-  font-family: 'Material Symbols Outlined', sans-serif;
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
-}
-
-.collapse-icon.collapsed {
-  transform: rotate(-180deg);
-}
-
-/* ==================== 内容折叠动画优化 ==================== */
 .paper-content-wrapper {
   overflow: hidden;
-  transition: 
-    max-height 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  max-height: 2000rpx;
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.paper-content-wrapper.collapsed {
-  max-height: 0;
-  opacity: 0;
-  margin: 0;
-  padding: 0;
-  transform: translateY(-10rpx);
 }
 
 /* ==================== 获取状态按钮动画优化 ==================== */
@@ -3204,7 +3962,6 @@ export default {
     transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
     box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: var(--shadow-primary);
-  margin-right: 16rpx;
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
@@ -3253,17 +4010,6 @@ export default {
   color: #ffffff;
   font-weight: 500;
   white-space: nowrap;
-}
-
-/* 折叠状态的卡片样式 */
-.paper-card.collapsed {
-  padding-bottom: 25rpx;
-}
-
-.paper-card.collapsed .paper-header {
-  margin-bottom: 0;
-  padding-bottom: 0;
-  border-bottom: none;
 }
 
 .paper-info {
@@ -4677,20 +5423,50 @@ export default {
 }
 
 .modal-content {
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-lg);
   width: 90%;
-  max-width: 800rpx;
-  background: #fff;
-  border-radius: 20rpx;
-  box-sizing: border-box;
+  max-width: 400px;
+  max-height: 80vh;
   overflow: hidden;
-  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.1);
-  animation: modalContentIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-ambient);
+  animation: modalSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
 }
 
-@keyframes modalContentIn {
+/* 修改密码弹窗特定样式 - 确保优先级 */
+.password-modal-content,
+.about-modal {
+  width: 90%;
+  max-width: 400px !important;
+  max-height: 80vh;
+}
+
+.password-modal-content .modal-header,
+.about-modal .modal-header {
+  padding: var(--spacing-4) var(--spacing-5);
+  background: var(--surface-container-low);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  min-height: auto;
+}
+
+.password-modal-content .modal-body {
+  padding: var(--spacing-5);
+}
+
+.password-modal-content .modal-footer,
+.about-modal .modal-footer {
+  padding: var(--spacing-4) var(--spacing-5);
+  gap: var(--spacing-3);
+  background: var(--surface-container-low);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+@keyframes modalSlideIn {
   from {
     opacity: 0;
-    transform: translateY(-30rpx) scale(0.95);
+    transform: translateY(-30px) scale(0.95);
   }
   to {
     opacity: 1;
@@ -4698,128 +5474,136 @@ export default {
   }
 }
 
-.modal-content .modal-header {
+.modal-header {
   display: flex;
-  justify-content: space-between;
-
   align-items: center;
-  padding: 30rpx;
-  border-bottom: 1rpx solid #e2e8f0;
+  justify-content: space-between;
+  padding: var(--spacing-4) var(--spacing-5);
+  background: var(--surface-container-low);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
-.modal-content .modal-title {
-  font-size: 36rpx;
+.modal-title {
+  font-size: 1.125rem;
   font-weight: 600;
-  color: #1a202c;
+  font-family: var(--font-body);
+  color: var(--on-surface);
 }
 
-.modal-content .modal-close {
-  font-size: 50rpx;
-  color: #718096;
-  width: 50rpx;
-  height: 50rpx;
-  text-align: center;
-  transition: all 0.2s ease;
-}
-
-.modal-content .modal-close:active {
-  color: #1677ff;
-  transform: scale(0.9);
-}
-
-.modal-content .modal-body {
-  padding: 30rpx;
-}
-
-.modal-content .form-item {
-  margin-bottom: 20rpx;
-}
-
-.modal-content .form-label {
-  display: block;
-  font-size: 28rpx;
-  font-weight: 500;
-  color: #2d3748;
-  margin-bottom: 10rpx;
-}
-
-.modal-content .form-input {
-  width: 100%;
-  height: 80rpx;
-  padding: 0 20rpx;
-  border: 2rpx solid #e2e8f0;
-  border-radius: 12rpx;
-  font-size: 30rpx;
-  color: #2d3748;
-  background-color: #fff;
-  box-sizing: border-box;
-  transition: all 0.2s ease;
-}
-
-.modal-content .form-input:focus {
-  border-color: #1677ff;
-  outline: none;
-  box-shadow: 0 0 0 3rpx rgba(22, 119, 255, 0.1);
-}
-
-.modal-content .form-tips {
-  margin-top: 20rpx;
-  padding: 20rpx;
-  background: #fef3c7;
-  border-radius: 12rpx;
-}
-
-.modal-content .form-tips.error-tips {
-  background: #ffdad6;
-}
-
-.modal-content .tips-text {
-  font-size: 26rpx;
-  color: #92400e;
-}
-
-.modal-content .tips-text.error-text {
-  color: #410002;
-}
-
-.modal-content .modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 20rpx;
-  padding: 20rpx 30rpx;
-  border-top: 1rpx solid #e2e8f0;
-}
-
-.modal-content .btn {
-  padding: 15rpx 30rpx;
-  border-radius: 8rpx;
-  font-size: 28rpx;
-  border: none;
+.modal-close {
+  font-size: 1.5rem;
+  color: var(--on-surface-variant);
   cursor: pointer;
-  transition: all 0.2s ease;
+  padding: var(--spacing-1);
+  transition: color 0.2s;
 }
 
-.modal-content .btn-cancel {
-  background-color: #f7fafc;
-  color: #718096;
-  border: 1rpx solid #e2e8f0;
+.modal-close:hover {
+  color: var(--on-surface);
 }
 
-.modal-content .btn-cancel:hover {
-  background-color: #edf2f7;
+.modal-body {
+  padding: var(--spacing-5);
+  flex: 1;
+  overflow-y: auto;
 }
 
-.modal-content .btn-confirm {
-  background-color: #1677ff;
-  color: #fff;
+.modal-footer {
+  display: flex;
+  padding: var(--spacing-4) var(--spacing-5);
+  gap: var(--spacing-3);
+  background: var(--surface-container-low);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
-.modal-content .btn-confirm:hover {
-  background-color: #0056b3;
+/* 表单样式 */
+.form-item {
+  margin-bottom: var(--spacing-4);
 }
 
-.modal-content .btn:active {
-  transform: scale(0.98);
+.form-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+  margin-bottom: var(--spacing-2);
+}
+
+.form-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 var(--spacing-4);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+  background: var(--surface-container-low);
+  box-sizing: border-box;
+  transition: all 0.2s;
+}
+
+.form-input:focus {
+  background: var(--surface-container-high);
+  outline: none;
+}
+
+.form-tips {
+  margin-top: var(--spacing-3);
+  padding: var(--spacing-3);
+  background: var(--amber-tint);
+  border-radius: var(--radius-md);
+}
+
+.form-tips.error-tips {
+  background: var(--error-container);
+}
+
+.tips-text {
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-family: var(--font-body);
+  color: var(--on-amber);
+}
+
+.tips-text.error-text {
+  color: var(--on-error-container);
+}
+
+/* 按钮样式 */
+.btn {
+  flex: 1;
+  height: 44px;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-cancel {
+  background: var(--surface-container-high);
+  color: var(--on-surface-variant);
+}
+
+.btn-cancel:hover {
+  background: var(--surface-container-low);
+}
+
+.btn-confirm {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
+  color: white;
+  box-shadow: var(--shadow-primary);
+}
+
+.btn-confirm:hover {
+  box-shadow: 0 6px 20px rgba(0, 91, 191, 0.35);
+  transform: translateY(-1px);
 }
 
 /* 关于系统弹窗 */
@@ -4870,6 +5654,468 @@ export default {
   font-family: var(--font-body);
   color: var(--on-surface-variant);
   line-height: 1.6;
+}
+
+.agent-permission-modal {
+  width: 90%;
+  max-width: 420px !important;
+  border: 1px solid rgba(26, 115, 232, 0.12);
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.16);
+}
+
+.agent-permission-header {
+  background: linear-gradient(135deg, rgba(0, 91, 191, 0.12) 0%, rgba(26, 115, 232, 0.18) 100%);
+  border-bottom: 1px solid rgba(26, 115, 232, 0.1);
+}
+
+.agent-permission-header .modal-title {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.agent-permission-header .modal-close {
+  color: var(--primary);
+}
+
+.agent-permission-modal-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-8) var(--spacing-6) var(--spacing-7);
+  text-align: center;
+  gap: var(--spacing-4);
+  background: linear-gradient(180deg, rgba(26, 115, 232, 0.04) 0%, rgba(255, 255, 255, 0) 40%);
+}
+
+.agent-permission-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-primary);
+  border: 6px solid rgba(255, 255, 255, 0.88);
+}
+
+.agent-permission-icon .material-symbols-outlined {
+  font-size: 34px;
+  color: white;
+}
+
+.agent-permission-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+}
+
+.agent-permission-student {
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 91, 191, 0.08);
+  color: var(--primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+}
+
+.agent-permission-desc {
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--on-surface-variant);
+  font-family: var(--font-body);
+  max-width: 320px;
+}
+
+.agent-permission-tip {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(254, 243, 199, 0.92) 0%, #fffaf0 100%);
+  border: 1px solid rgba(245, 158, 11, 0.18);
+  color: var(--on-amber);
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.agent-permission-tip .material-symbols-outlined {
+  font-size: 20px;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.agent-permission-tip text:last-child {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  font-family: var(--font-body);
+}
+
+.agent-permission-footer {
+  background: linear-gradient(180deg, rgba(26, 115, 232, 0.03) 0%, var(--surface-container-low) 100%);
+  border-top: 1px solid rgba(26, 115, 232, 0.08);
+}
+
+.agent-use-modal {
+  width: 90%;
+  max-width: 420px !important;
+  border: 1px solid rgba(8, 151, 156, 0.16);
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18);
+}
+
+.agent-use-header {
+  background: linear-gradient(135deg, rgba(8, 151, 156, 0.12) 0%, rgba(56, 178, 172, 0.2) 100%);
+  border-bottom: 1px solid rgba(8, 151, 156, 0.14);
+}
+
+.agent-use-header .modal-title,
+.agent-use-header .modal-close {
+  color: #0f766e;
+}
+
+.agent-use-modal-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-8) var(--spacing-6) var(--spacing-7);
+  text-align: center;
+  gap: var(--spacing-4);
+  background: linear-gradient(180deg, rgba(56, 178, 172, 0.05) 0%, rgba(255, 255, 255, 0) 42%);
+}
+
+.agent-use-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #08979c 0%, #38b2ac 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 14px 28px rgba(8, 151, 156, 0.22);
+  border: 6px solid rgba(255, 255, 255, 0.88);
+}
+
+.agent-use-icon .material-symbols-outlined {
+  font-size: 34px;
+  color: white;
+}
+
+.agent-use-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+}
+
+.agent-use-student,
+.agent-use-paper {
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  background: rgba(8, 151, 156, 0.08);
+  color: #0f766e;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+}
+
+.agent-use-paper {
+  max-width: 100%;
+  word-break: break-word;
+}
+
+.agent-use-desc {
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--on-surface-variant);
+  font-family: var(--font-body);
+  max-width: 320px;
+}
+
+.agent-use-tip {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(230, 255, 251, 0.96) 0%, rgba(240, 253, 250, 1) 100%);
+  border: 1px solid rgba(8, 151, 156, 0.16);
+  color: #0f766e;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.agent-use-tip .material-symbols-outlined {
+  font-size: 20px;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.agent-use-tip text:last-child {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  font-family: var(--font-body);
+}
+
+.agent-use-footer {
+  background: linear-gradient(180deg, rgba(8, 151, 156, 0.03) 0%, var(--surface-container-low) 100%);
+  border-top: 1px solid rgba(8, 151, 156, 0.08);
+}
+
+/* 提交审查按鈕：青绿主题，带图标 */
+.agent-use-submit-btn {
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #08979c 0%, #38b2ac 100%) !important;
+  box-shadow: 0 4px 14px rgba(8, 151, 156, 0.28) !important;
+}
+
+.agent-use-submit-btn .material-symbols-outlined {
+  font-size: 17px;
+}
+
+/* 智能体弹窗 - 加载动画 */
+@keyframes agent-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.agent-spin {
+  animation: agent-spin 1s linear infinite;
+  display: inline-block;
+}
+
+.agent-use-icon-loading {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+  box-shadow: 0 14px 28px rgba(99, 102, 241, 0.22) !important;
+}
+
+.agent-use-icon-error {
+  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%) !important;
+  box-shadow: 0 14px 28px rgba(239, 68, 68, 0.22) !important;
+}
+
+.agent-use-title-error {
+  color: #dc2626 !important;
+}
+
+.agent-use-error-msg {
+  font-size: 0.875rem;
+  color: #dc2626;
+  background: rgba(239, 68, 68, 0.08);
+  padding: 10px 16px;
+  border-radius: var(--radius-lg, 12px);
+  width: 100%;
+  text-align: center;
+  font-family: var(--font-body);
+  box-sizing: border-box;
+}
+
+.agent-use-success-tip {
+  background: rgba(16, 185, 129, 0.08) !important;
+  border: 1px solid rgba(16, 185, 129, 0.2) !important;
+  color: #065f46 !important;
+}
+
+.agent-use-success-tip .material-symbols-outlined {
+  color: #10b981 !important;
+}
+
+.agent-use-warn-tip {
+  background: rgba(245, 158, 11, 0.08) !important;
+  border: 1px solid rgba(245, 158, 11, 0.2) !important;
+  color: #92400e !important;
+}
+
+.agent-use-warn-tip .material-symbols-outlined {
+  color: #f59e0b !important;
+}
+
+/* 后端 MySQL异常但实际成功的提示（靖蓝色） */
+.agent-use-verified-tip {
+  background: rgba(79, 70, 229, 0.07) !important;
+  border: 1px solid rgba(79, 70, 229, 0.18) !important;
+  color: #3730a3 !important;
+}
+
+.agent-use-verified-tip .material-symbols-outlined {
+  color: #6366f1 !important;
+}
+
+.agent-request-modal {
+  width: 90%;
+  max-width: 430px !important;
+  border: 1px solid rgba(217, 119, 6, 0.14);
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.16);
+}
+
+.agent-request-header {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(251, 191, 36, 0.18) 100%);
+  border-bottom: 1px solid rgba(217, 119, 6, 0.1);
+}
+
+.agent-request-header .modal-title,
+.agent-request-header .modal-close {
+  color: #b45309;
+}
+
+.agent-request-modal-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-8) var(--spacing-6) var(--spacing-7);
+  text-align: center;
+  gap: var(--spacing-4);
+  background: linear-gradient(180deg, rgba(251, 191, 36, 0.05) 0%, rgba(255, 255, 255, 0) 40%);
+}
+
+.agent-request-modal-body.success-state {
+  gap: var(--spacing-3);
+}
+
+.agent-request-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 14px 28px rgba(217, 119, 6, 0.22);
+  border: 6px solid rgba(255, 255, 255, 0.88);
+}
+
+.agent-request-icon.success {
+  background: linear-gradient(135deg, #08979c 0%, #38b2ac 100%);
+  box-shadow: 0 14px 28px rgba(8, 151, 156, 0.22);
+}
+
+.agent-request-icon .material-symbols-outlined {
+  font-size: 34px;
+  color: #fff;
+}
+
+.agent-request-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+}
+
+.agent-request-desc {
+  max-width: 320px;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--on-surface-variant);
+  font-family: var(--font-body);
+}
+
+.agent-request-student,
+.agent-request-badge {
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  background: rgba(217, 119, 6, 0.08);
+  color: #b45309;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  max-width: 100%;
+  word-break: break-word;
+}
+
+.agent-request-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  text-align: left;
+}
+
+.agent-request-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+}
+
+.agent-request-input {
+  width: 100%;
+  height: 46px;
+  padding: 0 var(--spacing-4);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+  background: var(--surface-container-low);
+  box-sizing: border-box;
+  transition: all 0.2s;
+}
+
+.agent-request-input:focus {
+  background: var(--surface-container-high);
+  outline: none;
+}
+
+.agent-request-placeholder {
+  color: var(--on-surface-variant);
+}
+
+.agent-request-error {
+  font-size: 0.75rem;
+  color: #b3261e;
+  font-family: var(--font-body);
+  line-height: 1.5;
+}
+
+.agent-request-tip {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(254, 243, 199, 0.94) 0%, #fffaf0 100%);
+  border: 1px solid rgba(245, 158, 11, 0.16);
+  color: var(--on-amber);
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.agent-request-tip.success-tip {
+  background: linear-gradient(135deg, rgba(230, 255, 251, 0.96) 0%, rgba(240, 253, 250, 1) 100%);
+  border-color: rgba(8, 151, 156, 0.16);
+  color: #0f766e;
+}
+
+.agent-request-tip .material-symbols-outlined {
+  font-size: 20px;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.agent-request-tip text:last-child {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  font-family: var(--font-body);
+}
+
+.agent-request-footer {
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.03) 0%, var(--surface-container-low) 100%);
+  border-top: 1px solid rgba(245, 158, 11, 0.08);
+}
+
+.agent-request-footer .btn.disabled,
+.agent-request-footer .btn.disabled:hover {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: var(--shadow-primary);
 }
 
 /* ===== 工作台同款用户菜单样式（放在文件尾部以覆盖页面通用规则） ===== */
@@ -5247,6 +6493,611 @@ export default {
   font-family: var(--font-body);
   color: var(--on-surface-variant);
   line-height: 1.6;
+}
+
+/* ===== 智能体报告弹窗 ===== */
+.agent-report-backdrop {
+  z-index: 999;
+}
+
+.agent-report-modal {
+  width: 92%;
+  max-width: 640px !important;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(79, 70, 229, 0.14);
+  box-shadow: 0 24px 56px rgba(15, 23, 42, 0.18);
+  animation: modalSlideIn 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+/* 弹窗头部 */
+.agent-report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.1) 0%, rgba(99, 102, 241, 0.16) 100%);
+  border-bottom: 1px solid rgba(79, 70, 229, 0.1);
+  flex-shrink: 0;
+}
+
+.agent-report-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.agent-report-header-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.28);
+  flex-shrink: 0;
+}
+
+.agent-report-header-icon .material-symbols-outlined {
+  font-size: 22px;
+  color: #fff;
+}
+
+.agent-report-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.agent-report-header-title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  font-family: var(--font-body);
+  color: #312e81;
+}
+
+.agent-report-header-sub {
+  font-size: 0.78rem;
+  font-family: var(--font-body);
+  color: #6366f1;
+}
+
+.agent-report-header .modal-close {
+  color: #4f46e5;
+  font-size: 1.375rem;
+  cursor: pointer;
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+
+.agent-report-header .modal-close:hover {
+  color: #312e81;
+}
+
+/* 弹窗主体 */
+.agent-report-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.03) 0%, var(--surface-container-lowest, #fff) 100%);
+}
+
+/* 全局加载状态 */
+.agent-report-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 0;
+  gap: 14px;
+  color: #6366f1;
+}
+
+.agent-report-loading .material-symbols-outlined {
+  font-size: 40px;
+  color: #6366f1;
+}
+
+.agent-report-loading-text {
+  font-size: 0.9rem;
+  font-family: var(--font-body);
+  color: var(--on-surface-variant);
+}
+
+/* 空状态 */
+.agent-report-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px;
+  gap: 12px;
+  text-align: center;
+}
+
+.agent-report-empty-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.14) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.agent-report-empty-icon .material-symbols-outlined {
+  font-size: 32px;
+  color: #6366f1;
+}
+
+.agent-report-empty-title {
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+}
+
+.agent-report-empty-desc {
+  font-size: 0.875rem;
+  font-family: var(--font-body);
+  color: #b91c1c;
+  line-height: 1.5;
+}
+
+.agent-report-empty-tip {
+  font-size: 0.8rem;
+  font-family: var(--font-body);
+  color: var(--on-surface-variant);
+}
+
+/* 任务元信息卡片 */
+.agent-report-task-card {
+  background: var(--surface-container-low, #f8fafc);
+  border-radius: 12px;
+  border: 1px solid rgba(79, 70, 229, 0.1);
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.agent-report-task-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.agent-report-task-label {
+  font-size: 0.8rem;
+  font-family: var(--font-body);
+  color: var(--on-surface-variant);
+  font-weight: 500;
+  min-width: 56px;
+}
+
+.agent-report-task-value {
+  font-size: 0.875rem;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+}
+
+.agent-report-mono {
+  font-family: 'Menlo', 'Consolas', 'Fira Code', monospace;
+  font-size: 0.82rem;
+  color: #4f46e5;
+  background: rgba(79, 70, 229, 0.06);
+  padding: 2px 8px;
+  border-radius: 6px;
+  word-break: break-all;
+}
+
+/* 状态 badge */
+.agent-report-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  background: rgba(99, 102, 241, 0.1);
+  color: #4338ca;
+}
+
+.agent-report-status-badge .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.agent-report-status-done,
+.agent-report-status-completed,
+.agent-report-status-success {
+  background: rgba(16, 185, 129, 0.1) !important;
+  color: #065f46 !important;
+}
+
+.agent-report-status-failed,
+.agent-report-status-error {
+  background: rgba(239, 68, 68, 0.1) !important;
+  color: #991b1b !important;
+}
+
+.agent-report-status-pending,
+.agent-report-status-processing,
+.agent-report-status-running {
+  background: rgba(245, 158, 11, 0.1) !important;
+  color: #92400e !important;
+}
+
+/* 进度条 */
+.agent-report-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.agent-report-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(79, 70, 229, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.agent-report-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4f46e5, #818cf8);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.agent-report-progress-pct {
+  font-size: 0.8rem;
+  font-family: var(--font-body);
+  color: #4f46e5;
+  font-weight: 600;
+  min-width: 34px;
+}
+
+/* 错误提示条 */
+.agent-report-error-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.07);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  color: #b91c1c;
+  font-size: 0.875rem;
+  font-family: var(--font-body);
+  line-height: 1.5;
+}
+
+.agent-report-error-tip .material-symbols-outlined {
+  font-size: 18px;
+  flex-shrink: 0;
+  color: #ef4444;
+}
+
+/* 报告内容区 */
+.agent-report-content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* 概览统计行 */
+.agent-report-summary-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.agent-report-stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(79, 70, 229, 0.09);
+  color: #4338ca;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+}
+
+.agent-report-stat-chip .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.agent-report-stat-chip.chip-teal {
+  background: rgba(13, 148, 136, 0.09);
+  color: #0f766e;
+}
+
+.agent-report-stat-chip.chip-purple {
+  background: rgba(139, 92, 246, 0.09);
+  color: #7c3aed;
+}
+
+/* 分区标题 */
+.agent-report-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.agent-report-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+  padding-bottom: 8px;
+  border-bottom: 1.5px solid rgba(79, 70, 229, 0.1);
+}
+
+.agent-report-section-title .material-symbols-outlined {
+  font-size: 18px;
+  color: #6366f1;
+}
+
+.agent-report-section-count {
+  margin-left: auto;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--on-surface-variant);
+  background: var(--surface-container-low, #f8fafc);
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+
+/* 参考文献列表 */
+.agent-report-ref-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-report-ref-item {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--surface-container-low, #f8fafc);
+  border: 1px solid transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.agent-report-ref-item.ref-issue {
+  background: rgba(239, 68, 68, 0.05);
+  border-color: rgba(239, 68, 68, 0.15);
+}
+
+.agent-report-ref-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.agent-report-ref-num {
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: monospace;
+  color: #6366f1;
+  flex-shrink: 0;
+}
+
+.agent-report-ref-text {
+  font-size: 0.85rem;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+  line-height: 1.5;
+}
+
+.agent-report-ref-remark {
+  font-size: 0.78rem;
+  font-family: var(--font-body);
+  color: #b91c1c;
+  line-height: 1.4;
+  padding-left: 4px;
+}
+
+/* 筛选标签栏 */
+.agent-report-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.agent-report-filter-tag {
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  font-family: var(--font-body);
+  color: var(--on-surface-variant);
+  background: var(--surface-container-low, #f8fafc);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+
+.agent-report-filter-tag.active {
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.22);
+}
+
+.agent-report-filter-tag:hover:not(.active) {
+  background: rgba(79, 70, 229, 0.07);
+  color: #4f46e5;
+}
+
+/* 分段列表 */
+.agent-report-chunk-item {
+  border: 1px solid rgba(79, 70, 229, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface-container-lowest, #fff);
+}
+
+.agent-report-chunk-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.06) 0%, rgba(99, 102, 241, 0.1) 100%);
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  color: #4338ca;
+}
+
+.agent-report-chunk-head .material-symbols-outlined {
+  font-size: 17px;
+  color: #6366f1;
+}
+
+.agent-report-chunk-count {
+  margin-left: auto;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--on-surface-variant);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+
+/* 单条问题 */
+.agent-report-issue {
+  padding: 12px 16px;
+  border-top: 1px solid rgba(79, 70, 229, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.agent-report-issue-type-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: var(--font-body);
+  background: rgba(79, 70, 229, 0.08);
+  color: #4f46e5;
+  align-self: flex-start;
+}
+
+.agent-report-issue-msg {
+  font-size: 0.875rem;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+  line-height: 1.6;
+}
+
+.agent-report-issue-sug {
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  color: #0f766e;
+  background: rgba(13, 148, 136, 0.07);
+  padding: 5px 10px;
+  border-radius: 7px;
+  line-height: 1.5;
+}
+
+.agent-report-chunk-empty {
+  padding: 12px 16px;
+  border-top: 1px solid rgba(79, 70, 229, 0.07);
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  color: var(--on-surface-variant);
+  text-align: center;
+}
+
+/* 无问题 */
+.agent-report-no-issues {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 0;
+  color: #059669;
+  text-align: center;
+}
+
+.agent-report-no-issues .material-symbols-outlined {
+  font-size: 40px;
+  color: #10b981;
+}
+
+.agent-report-no-issues text:last-child {
+  font-size: 0.9rem;
+  font-family: var(--font-body);
+  color: #065f46;
+}
+
+/* 等待提示 */
+.agent-report-pending-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 36px 0;
+  color: var(--on-surface-variant);
+  text-align: center;
+}
+
+.agent-report-pending-hint .material-symbols-outlined {
+  font-size: 38px;
+  color: #f59e0b;
+}
+
+.agent-report-pending-hint text:last-child {
+  font-size: 0.875rem;
+  font-family: var(--font-body);
+  line-height: 1.6;
+}
+
+/* 弹窗底部 */
+.agent-report-footer {
+  background: linear-gradient(180deg, rgba(79, 70, 229, 0.03) 0%, var(--surface-container-low) 100%);
+  border-top: 1px solid rgba(79, 70, 229, 0.08);
+  flex-shrink: 0;
+}
+
+.agent-report-query-btn,
+.agent-report-refresh-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%) !important;
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.28) !important;
+}
+
+.agent-report-query-btn.disabled,
+.agent-report-refresh-btn.disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.agent-report-query-btn .material-symbols-outlined,
+.agent-report-refresh-btn .material-symbols-outlined {
+  font-size: 17px;
 }
 
 </style>

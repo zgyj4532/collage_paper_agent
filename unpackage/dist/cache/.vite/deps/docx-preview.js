@@ -1,9 +1,9 @@
 import {
   __toESM,
   require_jszip_min
-} from "./chunk-LG2LBQCU.js";
+} from "./chunk-TUEKGMLK.js";
 
-// C:/Users/epg73/Desktop/6666（3）(1)/node_modules/docx-preview/dist/docx-preview.mjs
+// C:/Users/a2075/Desktop/6666（3）/node_modules/docx-preview/dist/docx-preview.mjs
 var import_jszip = __toESM(require_jszip_min(), 1);
 var RelationshipTypes;
 (function(RelationshipTypes2) {

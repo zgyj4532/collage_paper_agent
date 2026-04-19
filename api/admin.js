@@ -592,4 +592,24 @@ export function createTeacher(data) {
   });
 }
 
+/** 查询智能体权限申请消息 GET /api/v1/agent/agent-permission-requests */
+export function getAgentPermissionRequests(adminId) {
+  return request({
+    url: '/api/v1/agent/agent-permission-requests',
+    method: 'GET',
+    params: { admin_id: adminId }
+  });
+}
 
+/** 处理智能体权限申请 POST /api/v1/agent/handle-permission-request */
+export function handleAgentPermissionRequest(messageId, action, currentUser) {
+  return request({
+    url: '/api/v1/agent/handle-permission-request',
+    method: 'POST',
+    params: {
+      message_id: messageId,
+      action: action,
+      current_user: JSON.stringify(currentUser)
+    }
+  });
+}

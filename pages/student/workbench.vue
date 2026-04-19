@@ -124,7 +124,7 @@
                   <text class="material-symbols-outlined">lock</text>
                   <text>修改密码</text>
                 </view>
-                <view class="user-card-menu-item" @click="showAboutModal = true">
+                <view class="user-card-menu-item" @click="openAboutModal">
                   <text class="material-symbols-outlined">info</text>
                   <text>关于系统</text>
                 </view>
@@ -205,7 +205,6 @@
                 <view class="card-detail-section">
                   <view class="detail-header">
                     <text class="detail-label">论文标题</text>
-                    <text class="paper-id-label">ID: {{ paper.id }}</text>
                   </view>
                   <text class="paper-title">{{ paper.title || '未命名论文' }}</text>
                   <view class="paper-meta">
@@ -278,19 +277,21 @@
         </view>
         <view class="upload-modal-body">
           <view class="upload-modal-tips">
-            <text class="tips-line">支持格式：.docx、.pdf</text>
-            <text class="tips-line">文件大小：≤50MB</text>
+            <text class="tips-line">支持格式：.docx、.doc、.pdf</text>
+            <text class="tips-line">文件大小：≤100MB</text>
           </view>
-          <view class="paper-id-input-section">
-            <text class="input-label">论文ID：</text>
-            <input v-model="attachmentUpload.paperId" type="number" class="paper-id-input" placeholder="请输入论文列表中的论文ID" />
+          <view class="teacher-inline-section attachment-paper-section">
+            <text class="teacher-inline-label">关联论文：</text>
+            <view class="attachment-paper-info">
+              <text class="attachment-paper-title">{{ attachmentUpload.paperTitle || '当前论文' }}</text>
+            </view>
           </view>
           <button class="upload-modal-btn" @click="chooseAttachmentFile">选择文件</button>
           <view v-if="attachmentUpload.file" class="upload-modal-file-info">
             <text class="upload-modal-file-name">{{ attachmentUpload.file.name }}</text>
             <text class="upload-modal-file-size">{{ formatFileSize(attachmentUpload.file.size) }}</text>
           </view>
-          <button class="upload-modal-submit-btn" :disabled="!attachmentUpload.file" @click="submitAttachment">提交</button>
+          <button class="upload-modal-submit-btn" :disabled="!attachmentUpload.file || !attachmentUpload.paperId" @click="submitAttachment">提交</button>
         </view>
       </view>
     </view>
@@ -298,27 +299,6 @@
     <version-compare-modal v-if="modal.compare" :paper="currentPaper" :version1="versionCompare.v1" :version2="versionCompare.v2" :version1-label="versionCompare.label1" :version2-label="versionCompare.label2" @close="closeCompare" @version1-change="onVersion1Change" @version2-change="onVersion2Change" />
 
     <teacher-select-modal v-if="modal.teacherSelect" :teacher-name="upload.teacherName" :teacher-id="upload.teacherId" @close="cancelTeacherSelect" @confirm="onTeacherSelectConfirm" @teacher-name-change="upload.teacherName = $event" @teacher-id-change="upload.teacherId = $event" />
-    
-    <!-- 关于系统弹窗 -->
-    <view v-if="showAboutModal" class="modal-backdrop" @click.self="showAboutModal = false">
-      <view class="modal-content about-modal">
-        <view class="modal-header">
-          <text class="modal-title">关于系统</text>
-          <text class="modal-close" @click="showAboutModal = false">×</text>
-        </view>
-        <view class="modal-body about-modal-body">
-          <view class="about-icon">
-            <text class="material-symbols-outlined">school</text>
-          </view>
-          <view class="about-title">计测学院毕业论文管理系统</view>
-          <view class="about-version">v1.0</view>
-          <view class="about-desc">为学院师生提供论文管理、审阅和反馈功能。</view>
-        </view>
-        <view class="modal-footer">
-          <view class="btn btn-confirm" @click="showAboutModal = false">确定</view>
-        </view>
-      </view>
-    </view>
     
     <!-- 修改密码弹窗 -->
     <view v-if="showPasswordModal" class="modal-backdrop" @click.self="closePasswordModal">
@@ -333,7 +313,7 @@
             <input 
               class="form-input" 
               type="password" 
-              v-model="passwordForm.oldPassword"
+              v-model="passwordForm.currentPassword"
               placeholder="请输入当前密码"
             />
           </view>
@@ -355,10 +335,39 @@
               placeholder="请再次输入新密码"
             />
           </view>
+          <view class="form-tips" v-if="!passwordError">
+            <text class="tips-text">密码修改成功后需要重新登录</text>
+          </view>
+          <view class="form-tips error-tips" v-else>
+            <text class="tips-text error-text">{{ passwordError }}</text>
+          </view>
         </view>
         <view class="modal-footer">
           <view class="btn btn-cancel" @click="closePasswordModal">取消</view>
           <view class="btn btn-confirm" @click="submitChangePassword">确认修改</view>
+        </view>
+      </view>
+    </view>
+    
+
+    <view
+      v-if="paperUploadNoticeModal.visible"
+      class="modal-backdrop"
+      @click.self="closePaperUploadNoticeModal"
+    >
+      <view class="modal-content paper-upload-notice-modal">
+        <view class="modal-header">
+          <text class="modal-title">{{ paperUploadNoticeModal.title }}</text>
+          <text class="modal-close" @click="closePaperUploadNoticeModal">×</text>
+        </view>
+        <view class="modal-body paper-upload-notice-body">
+          <view class="paper-upload-notice-icon">
+            <text class="material-symbols-outlined">info</text>
+          </view>
+          <text class="paper-upload-notice-text">{{ paperUploadNoticeModal.content }}</text>
+        </view>
+        <view class="modal-footer">
+          <view class="btn btn-confirm" @click="closePaperUploadNoticeModal">知道了</view>
         </view>
       </view>
     </view>
@@ -474,7 +483,8 @@ export default {
       attachmentUpload: {
         file: null,
         remark: '',
-        paperId: ''
+        paperId: '',
+        paperTitle: ''
       },
       
       // 文档预览状态
@@ -513,14 +523,16 @@ export default {
       // 修改密码弹窗
       showPasswordModal: false,
       passwordForm: {
-        oldPassword: '',
+        currentPassword: '',
         newPassword: '',
         confirmPassword: ''
       },
       passwordError: '',
-      
-      // 关于系统弹窗
-      showAboutModal: false
+      paperUploadNoticeModal: {
+        visible: false,
+        title: '',
+        content: ''
+      }
     };
   },
   computed: {
@@ -823,36 +835,35 @@ export default {
       }, 1000);
     },
     
-    // 退出登录
-    logout() {
-      this.showUserCard = false;
-      clearLoginState();
-      uni.removeStorageSync('rememberedUsername');
-      uni.showToast({ title: '已退出登录', icon: 'success' });
-      setTimeout(() => {
-        uni.reLaunch({ url: '/pages/index/index' });
-      }, 1000);
-    },
-    
-    // 跳转到修改密码页面
+    // 打开修改密码弹窗
     openChangePassword() {
       this.showUserCard = false;
+      this.passwordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
+      this.passwordError = '';
       this.showPasswordModal = true;
+    },
+
+    openAboutModal() {
+      this.showUserCard = false;
+      uni.showToast({
+        title: '当前为论文管理系统v1.0版本',
+        icon: 'none'
+      });
     },
     
     // 关闭修改密码弹窗
     closePasswordModal() {
       this.showPasswordModal = false;
-      this.passwordForm = { oldPassword: '', newPassword: '', confirmPassword: '' };
+      this.passwordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
       this.passwordError = '';
     },
     
     // 提交修改密码
     async submitChangePassword() {
-      const { oldPassword, newPassword, confirmPassword } = this.passwordForm;
+      const { currentPassword, newPassword, confirmPassword } = this.passwordForm;
       
-      // 密码表单验证
-      if (!oldPassword) {
+      // 密码表单验证（生产环境不输出密码信息）
+      if (!currentPassword) {
         this.passwordError = '请输入当前密码';
         return;
       }
@@ -868,7 +879,7 @@ export default {
         this.passwordError = '两次输入的新密码不一致';
         return;
       }
-      if (oldPassword === newPassword) {
+      if (currentPassword === newPassword) {
         this.passwordError = '新密码不能与当前密码相同';
         return;
       }
@@ -883,13 +894,13 @@ export default {
         uni.showLoading({ title: '修改中...', mask: true });
         
         const res = await changePassword({
-          old_password: oldPassword,
+          old_password: currentPassword,
           new_password: newPassword
         });
         
         uni.hideLoading();
         
-        // 判断修改成功
+        // 判断修改成功（后端返回 message 或 HTTP 状态码为 200）
         if (res && (res.message?.includes('成功') || res.code === 200)) {
           uni.showToast({ title: '密码修改成功，请重新登录', icon: 'success', duration: 2000 });
           this.closePasswordModal();
@@ -898,12 +909,24 @@ export default {
             uni.reLaunch({ url: '/pages/index/index' });
           }, 2000);
         } else {
+          // 显示后端返回的错误信息
           this.passwordError = res?.detail || res?.message || '密码修改失败';
         }
       } catch (err) {
         uni.hideLoading();
         this.passwordError = err?.message || err?.detail || '密码修改失败，请检查输入后重试';
       }
+    },
+    
+    // 退出登录
+    logout() {
+      this.showUserCard = false;
+      clearLoginState();
+      uni.removeStorageSync('rememberedUsername');
+      uni.showToast({ title: '已退出登录', icon: 'success' });
+      setTimeout(() => {
+        uni.reLaunch({ url: '/pages/index/index' });
+      }, 1000);
     },
     
     showMoreNotice() {
@@ -940,6 +963,80 @@ export default {
     
     showError(title = '操作失败') {
       uni.showToast({ title, icon: 'none', duration: 2000 });
+    },
+
+    showPaperUploadNoticeModal(title, content) {
+      this.paperUploadNoticeModal = {
+        visible: true,
+        title,
+        content
+      };
+    },
+
+    closePaperUploadNoticeModal() {
+      this.paperUploadNoticeModal = {
+        visible: false,
+        title: '',
+        content: ''
+      };
+    },
+
+    getExistingPapers() {
+      return this.paperGroups.flatMap(group => Array.isArray(group.papers) ? group.papers : []);
+    },
+
+    hasExistingPaper() {
+      return this.getExistingPapers().length > 0;
+    },
+
+    getSinglePaperLimitMessage() {
+      const currentPaper = this.getExistingPapers()[0] || null;
+      const paperTitle = currentPaper?.title || '当前论文';
+      return `当前账号已存在论文《${paperTitle}》。\n每位学生只能上传一篇论文。\n如需重新上传，请先前往“论文列表”删除当前论文，再返回工作台上传新论文。`;
+    },
+
+    showSinglePaperLimitDialog() {
+      this.showPaperUploadNoticeModal('无法上传论文', this.getSinglePaperLimitMessage());
+    },
+
+    getPaperUploadErrorDetail(err) {
+      const detailList = [];
+      if (typeof err?.message === 'string' && err.message.trim()) {
+        detailList.push(err.message.trim());
+      }
+      if (typeof err?.response?.message === 'string' && err.response.message.trim()) {
+        detailList.push(err.response.message.trim());
+      }
+      if (typeof err?.response?.detail === 'string' && err.response.detail.trim()) {
+        detailList.push(err.response.detail.trim());
+      }
+      if (Array.isArray(err?.response?.detail)) {
+        err.response.detail.forEach(item => {
+          if (typeof item === 'string' && item.trim()) {
+            detailList.push(item.trim());
+            return;
+          }
+          if (item && typeof item.msg === 'string' && item.msg.trim()) {
+            detailList.push(item.msg.trim());
+          }
+        });
+      }
+      return detailList.join('；');
+    },
+
+    buildPaperUploadErrorMessage(err) {
+      const detail = this.getPaperUploadErrorDetail(err);
+      const isSinglePaperLimit =
+        this.hasExistingPaper() ||
+        (err?.statusCode === 400 && /只能|仅允许|一篇|only|already|duplicate/i.test(detail));
+
+      if (isSinglePaperLimit) {
+        return this.getSinglePaperLimitMessage();
+      }
+
+      return detail
+        ? `论文上传失败：${detail}`
+        : '论文上传失败，请稍后重试。';
     },
 
     // 将工具函数挂载到 methods，使模板可以直接访问
@@ -988,6 +1085,10 @@ export default {
     },
     
     importPaper() {
+      if (this.hasExistingPaper()) {
+        this.showSinglePaperLimitDialog();
+        return;
+      }
       this.modal.upload = true;
       this.resetUploadState();
       this.fetchStudentInfo();
@@ -1048,6 +1149,7 @@ export default {
       this.attachmentUpload.file = null;
       this.attachmentUpload.remark = '';
       this.attachmentUpload.paperId = '';
+      this.attachmentUpload.paperTitle = '';
     },
     
     resetPreviewState() {
@@ -1093,15 +1195,69 @@ export default {
       
       return null;
     },
-    importAttachment() {
-      this.modal.attachment = true;
-      this.resetAttachmentState();
+    getAttachmentPaperDisplayTitle(paper) {
+      const rawTitle = paper?.title || paper?.name || paper?.paper_name || paper?.filename || paper?.file_name;
+      if (rawTitle) {
+        return rawTitle;
+      }
+
+      const rawPath = paper?.oss_key || paper?.fileUrl || '';
+      if (rawPath) {
+        const fileName = rawPath.split('/').pop();
+        if (fileName) {
+          try {
+            return decodeURIComponent(fileName).replace(/^\d+_/, '').replace(/\.[^/.]+$/, '');
+          } catch (err) {
+            return fileName.replace(/^\d+_/, '').replace(/\.[^/.]+$/, '');
+          }
+        }
+      }
+
+      return '当前论文';
     },
-    
+
+    async fetchAttachmentPaperInfo() {
+      const res = await getWorkbenchData();
+      const papers = Array.isArray(res)
+        ? res
+        : (Array.isArray(res?.data) ? res.data : []);
+
+      const validPapers = papers.filter(item => item?.id && !Number.isNaN(parseInt(item.id, 10)));
+      if (validPapers.length === 0) {
+        this.attachmentUpload.paperId = '';
+        this.attachmentUpload.paperTitle = '';
+        return null;
+      }
+
+      validPapers.sort((a, b) => Number(b.id) - Number(a.id));
+      const paper = validPapers[0];
+      this.attachmentUpload.paperId = String(parseInt(paper.id, 10));
+      this.attachmentUpload.paperTitle = this.getAttachmentPaperDisplayTitle(paper);
+      return paper;
+    },
+
+    async importAttachment() {
+      this.resetAttachmentState();
+      this.showLoading('加载论文信息...');
+      try {
+        const paper = await this.fetchAttachmentPaperInfo();
+        if (!paper) {
+          this.showPaperUploadNoticeModal('无法上传附件', '当前账号下未找到论文，请先上传论文后再上传附件。');
+          return;
+        }
+        this.modal.attachment = true;
+      } catch (err) {
+        console.error('[importAttachment] 获取论文信息失败:', err);
+        this.showPaperUploadNoticeModal('无法上传附件', '获取论文信息失败，请稍后重试。');
+      } finally {
+        this.hideLoading();
+      }
+    },
+
     closeAttachmentUpload() {
       this.closeModal('attachment');
     },
-    
+
     // 通用文件选择
     async chooseFile(options = {}) {
       return new Promise((resolve, reject) => {
@@ -1150,10 +1306,10 @@ export default {
         return;
       }
       
-      // 获取用户输入的论文ID
-      const paperId = parseInt(this.attachmentUpload.paperId);
+      // 使用上传弹窗打开时自动查询到的论文ID
+      const paperId = parseInt(this.attachmentUpload.paperId, 10);
       if (!paperId || isNaN(paperId)) {
-        this.showError('请输入有效的论文ID');
+        this.showError('未找到关联论文，请关闭弹窗后重试');
         return;
       }
       
@@ -1698,6 +1854,12 @@ export default {
       const existingPaperIds = new Set(
         this.paperGroups.flatMap(group => (group.papers || []).map(p => p.id))
       );
+
+      if (existingPaperIds.size > 0) {
+        this.closeUpload();
+        this.showSinglePaperLimitDialog();
+        return;
+      }
       
       // 先关闭上传弹窗，再显示 loading
       this.closeUpload();
@@ -1743,12 +1905,8 @@ export default {
       } catch (err) {
         console.error('上传失败:', err);
         this.hideLoading();
-        
-        uni.showToast({ 
-          title: err.message || '上传失败', 
-          icon: 'none', 
-          duration: 3000 
-        });
+
+        this.showPaperUploadNoticeModal('上传失败', this.buildPaperUploadErrorMessage(err));
       }
     },
     
@@ -3030,14 +3188,6 @@ export default {
   font-family: var(--font-body);
 }
 
-.paper-id-label {
-  color: var(--on-surface-variant);
-  font-size: 0.7rem;
-  font-family: var(--font-body);
-  opacity: 0.7;
-  margin-left: auto;
-}
-
 .group-title-icon {
   margin-right: 4px;
   font-family: 'Material Symbols Outlined', sans-serif;
@@ -3194,153 +3344,157 @@ export default {
   }
 }
 
-/* 修改密码弹窗 */
-.modal-content {
-  width: 90%;
-  max-width: 800rpx;
-  background: #fff;
-  border-radius: 20rpx;
-  box-sizing: border-box;
-  overflow: hidden;
-  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.1);
-  animation: modalContentIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes modalContentIn {
-  from {
-    opacity: 0;
-    transform: translateY(-30rpx) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.modal-content .modal-header {
+.modal-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 30rpx;
-  border-bottom: 1rpx solid #e2e8f0;
+  justify-content: space-between;
+  padding: var(--spacing-4) var(--spacing-5);
+  background: var(--surface-container-low);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
-.modal-content .modal-title {
-  font-size: 36rpx;
+.modal-header.logout-header {
+  background: linear-gradient(135deg, #fc8181 0%, #f56565 100%);
+}
+
+.modal-header.logout-header .modal-title,
+.modal-header.logout-header .modal-close {
+  color: white;
+}
+
+.modal-title {
+  font-size: 1.125rem;
   font-weight: 600;
-  color: #1a202c;
+  font-family: var(--font-body);
+  color: var(--on-surface);
 }
 
-.modal-content .modal-close {
-  font-size: 50rpx;
-  color: #718096;
-  width: 50rpx;
-  height: 50rpx;
-  text-align: center;
-  transition: all 0.2s ease;
-}
-
-.modal-content .modal-close:active {
-  color: #1677ff;
-  transform: scale(0.9);
-}
-
-.modal-content .modal-body {
-  padding: 30rpx;
-}
-
-.modal-content .form-item {
-  margin-bottom: 20rpx;
-}
-
-.modal-content .form-label {
-  display: block;
-  font-size: 28rpx;
-  font-weight: 500;
-  color: #2d3748;
-  margin-bottom: 10rpx;
-}
-
-.modal-content .form-input {
-  width: 100%;
-  height: 80rpx;
-  padding: 0 20rpx;
-  border: 2rpx solid #e2e8f0;
-  border-radius: 12rpx;
-  font-size: 30rpx;
-  color: #2d3748;
-  background-color: #fff;
-  box-sizing: border-box;
-  transition: all 0.2s ease;
-}
-
-.modal-content .form-input:focus {
-  border-color: #1677ff;
-  outline: none;
-  box-shadow: 0 0 0 3rpx rgba(22, 119, 255, 0.1);
-}
-
-.modal-content .form-tips {
-  margin-top: 20rpx;
-  padding: 20rpx;
-  background: #fef3c7;
-  border-radius: 12rpx;
-}
-
-.modal-content .form-tips.error-tips {
-  background: #ffdad6;
-}
-
-.modal-content .tips-text {
-  font-size: 26rpx;
-  color: #92400e;
-}
-
-.modal-content .tips-text.error-text {
-  color: #410002;
-}
-
-.modal-content .modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 20rpx;
-  padding: 20rpx 30rpx;
-  border-top: 1rpx solid #e2e8f0;
-}
-
-.modal-content .btn {
-  padding: 15rpx 30rpx;
-  border-radius: 8rpx;
-  font-size: 28rpx;
-  border: none;
+.modal-close {
+  font-size: 1.5rem;
+  color: var(--on-surface-variant);
   cursor: pointer;
-  transition: all 0.2s ease;
+  padding: var(--spacing-1);
+  transition: color 0.2s;
 }
 
-.modal-content .btn-cancel {
-  background-color: #f7fafc;
-  color: #718096;
-  border: 1rpx solid #e2e8f0;
+.modal-close:hover {
+  color: var(--on-surface);
 }
 
-.modal-content .btn-cancel:hover {
-  background-color: #edf2f7;
+.modal-body {
+  padding: var(--spacing-5);
+  flex: 1;
+  overflow-y: auto;
 }
 
-.modal-content .btn-confirm {
-  background-color: #1677ff;
-  color: #fff;
+.modal-footer {
+  display: flex;
+  padding: var(--spacing-4) var(--spacing-5);
+  gap: var(--spacing-3);
+  background: var(--surface-container-low);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
-.modal-content .btn-confirm:hover {
-  background-color: #0056b3;
+/* 表单样式 */
+.form-item {
+  margin-bottom: var(--spacing-4);
 }
 
-.modal-content .btn:active {
-  transform: scale(0.98);
+.form-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+  margin-bottom: var(--spacing-2);
 }
 
-/* 退出登录弹窗 */
+.form-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 var(--spacing-4);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+  background: var(--surface-container-low);
+  box-sizing: border-box;
+  transition: all 0.2s;
+}
+
+.form-input:focus {
+  background: var(--surface-container-high);
+  outline: none;
+}
+
+.form-tips {
+  margin-top: var(--spacing-3);
+  padding: var(--spacing-3);
+  background: var(--amber-tint);
+  border-radius: var(--radius-md);
+}
+
+.form-tips.error-tips {
+  background: var(--error-container);
+}
+
+.tips-text {
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-family: var(--font-body);
+  color: var(--on-amber);
+}
+
+.tips-text.error-text {
+  color: var(--on-error-container);
+}
+
+/* 按钮样式 */
+.btn {
+  flex: 1;
+  height: 44px;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-cancel {
+  background: var(--surface-container-high);
+  color: var(--on-surface-variant);
+}
+
+.btn-cancel:hover {
+  background: var(--surface-container-low);
+}
+
+.btn-confirm {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
+  color: white;
+  box-shadow: var(--shadow-primary);
+}
+
+.btn-confirm:hover {
+  box-shadow: 0 6px 20px rgba(0, 91, 191, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-logout {
+  background: linear-gradient(135deg, #fc8181 0%, #f56565 100%);
+  color: white;
+}
+
+.btn-logout:hover {
+  box-shadow: 0 4px 12px rgba(245, 101, 101, 0.3);
+}
+
+/* 关于系统弹窗 */
 .about-modal-body {
   display: flex;
   flex-direction: column;
@@ -3388,6 +3542,56 @@ export default {
   font-family: var(--font-body);
   color: var(--on-surface-variant);
   line-height: 1.6;
+}
+
+.paper-upload-notice-modal {
+  width: 90%;
+  max-width: 800rpx !important;
+}
+
+.paper-upload-notice-modal .modal-title {
+  font-size: 1.25rem;
+}
+
+.paper-upload-notice-body {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-4);
+  padding: var(--spacing-6) var(--spacing-5);
+  text-align: left;
+}
+
+.paper-upload-notice-icon {
+  width: 64px;
+  height: 64px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-primary);
+  align-self: center;
+}
+
+.paper-upload-notice-icon .material-symbols-outlined {
+  font-size: 32px;
+  color: white;
+}
+
+.paper-upload-notice-text {
+  font-size: 1.05rem;
+  font-weight: 400;
+  font-family: var(--font-body);
+  color: var(--on-surface-variant);
+  line-height: 1.25;
+  white-space: pre-line;
+  word-break: break-word;
+  text-align: left;
+}
+
+.paper-upload-notice-modal .btn {
+  font-size: 0.95rem;
 }
 
 /* 退出登录弹窗 */
@@ -3779,28 +3983,6 @@ export default {
   margin-bottom: 20rpx;
 }
 
-/* 论文ID输入区域 */
-.paper-id-input-section {
-  margin-bottom: 20rpx;
-  display: flex;
-  align-items: center;
-}
-
-.paper-id-input-section .input-label {
-  margin-right: 20rpx;
-  white-space: nowrap;
-}
-
-.paper-id-input {
-  flex: 1;
-  height: 70rpx;
-  padding: 0 20rpx;
-  border: 2rpx solid #e2e8f0;
-  border-radius: 8rpx;
-  font-size: 28rpx;
-  background-color: #fff;
-}
-
 .input-label {
   display: block;
   font-size: 28rpx;
@@ -3850,6 +4032,25 @@ export default {
   margin-bottom: 20rpx;
   padding: 18rpx 0;
   border-bottom: 2rpx solid #f0f0f0;
+}
+
+.attachment-paper-section {
+  align-items: flex-start;
+  gap: 20rpx;
+}
+
+.attachment-paper-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  min-width: 0;
+}
+
+.attachment-paper-title {
+  font-size: 30rpx;
+  color: #2d3748;
+  font-weight: 600;
+  word-break: break-word;
 }
 
 .teacher-inline-label {

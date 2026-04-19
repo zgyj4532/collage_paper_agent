@@ -72,18 +72,17 @@
                 <text class="stat-value">{{ attachmentList.length }}</text>
               </view>
             </view>
-            <!-- 按论文分类的统计项 -->
+            <!-- 附件名称列表 -->
             <view 
-              v-for="paper in papers" 
-              :key="paper.id"
-              class="stat-item clickable paper-stat-item"
-              @click="sortAttachmentsByPaper(paper.id)" 
-              :class="{ active: activeSort === paper.id }"
+              v-for="attachment in sidebarAttachments" 
+              :key="attachment.id"
+              class="stat-item clickable attachment-stat-item"
+              @click="handleSidebarItemClick(attachment)"
             >
-              <view class="stat-icon material-symbols-outlined">description</view>
+              <view class="stat-icon material-symbols-outlined">{{ getFileIcon(attachment.type) }}</view>
               <view class="stat-content">
-                <text class="stat-label">{{ getShortTitle(paper.title) }}</text>
-                <text class="stat-value">{{ getPaperAttachmentCount(paper.id) }}</text>
+                <text class="stat-label">{{ getSidebarAttachmentName(attachment.name) }}</text>
+                <text class="stat-value">{{ getTypeLabel(attachment.type) }}</text>
               </view>
             </view>
           </view>
@@ -111,7 +110,13 @@
 
         <!-- 附件列表 -->
         <transition-group v-else name="attachment-list" tag="view" class="attachment-list">
-          <view v-for="(item, index) in filteredAttachments" :key="item.id" class="attachment-card">
+          <view
+            v-for="(item, index) in filteredAttachments"
+            :key="item.id"
+            :id="'attachment-' + item.id"
+            class="attachment-card"
+            :class="{ highlighted: highlightedAttachmentId === item.id }"
+          >
             <!-- 附件头部 -->
             <view class="attachment-header">
               <view class="file-info">
@@ -174,27 +179,6 @@
       @cancel="handleConfirmModalCancel"
     />
     
-    <!-- 关于系统弹窗 -->
-    <view v-if="showAboutModal" class="modal-backdrop" @click.self="showAboutModal = false">
-      <view class="modal-content about-modal">
-        <view class="modal-header">
-          <text class="modal-title">关于系统</text>
-          <text class="modal-close" @click="showAboutModal = false">×</text>
-        </view>
-        <view class="modal-body about-modal-body">
-          <view class="about-icon">
-            <text class="material-symbols-outlined">school</text>
-          </view>
-          <view class="about-title">计测学院毕业论文管理系统</view>
-          <view class="about-version">v1.0</view>
-          <view class="about-desc">为学院师生提供论文管理、审阅和反馈功能。</view>
-        </view>
-        <view class="modal-footer">
-          <view class="btn btn-confirm" @click="showAboutModal = false">确定</view>
-        </view>
-      </view>
-    </view>
-    
     <!-- 修改密码弹窗 -->
     <view v-if="showPasswordModal" class="modal-backdrop" @click.self="closePasswordModal">
       <view class="modal-content password-modal-content student-user-panel-modal">
@@ -208,7 +192,7 @@
             <input 
               class="user-panel-form-input"
               type="password" 
-              v-model="passwordForm.oldPassword"
+              v-model="passwordForm.currentPassword"
               placeholder="请输入当前密码"
             />
           </view>
@@ -243,6 +227,7 @@
         </view>
       </view>
     </view>
+    
   </view>
 </template>
 
@@ -270,8 +255,8 @@ export default {
       },
       attachmentList: [],
       loading: true,
-      // 论文列表
-      papers: [],
+      // 左侧栏展示用的附件列表
+      sidebarAttachments: [],
       // 论文ID列表
       paperIds: [],
       // 按论文分组的附件数据
@@ -282,10 +267,8 @@ export default {
       confirmModalContent: '',
       confirmModalCallback: null,
       currentFilter: 'all',
-      // 当前排序状态（论文ID）
-      activeSort: null,
-      // 原始附件顺序（用于恢复）
-      originalAttachmentList: [],
+      // 左侧栏点击后高亮的附件ID
+      highlightedAttachmentId: null,
       // 附件列表刷新key
       attachmentListKey: 0,
       backupAttachmentList: [
@@ -319,18 +302,14 @@ export default {
       ],
       // 用户卡片
       showUserCard: false,
-      
       // 修改密码弹窗
       showPasswordModal: false,
       passwordForm: {
-        oldPassword: '',
+        currentPassword: '',
         newPassword: '',
         confirmPassword: ''
       },
-      passwordError: '',
-      
-      // 关于系统弹窗
-      showAboutModal: false
+      passwordError: ''
     };
   },
   computed: {
@@ -384,6 +363,10 @@ export default {
       clearTimeout(this._userCardHideTimer);
       this._userCardHideTimer = null;
     }
+    if (this._attachmentHighlightTimer) {
+      clearTimeout(this._attachmentHighlightTimer);
+      this._attachmentHighlightTimer = null;
+    }
   },
   
   methods: {
@@ -409,30 +392,35 @@ export default {
       }, 1000);
     },
     
-    // 跳转到修改密码页面
+    // 打开修改密码弹窗
     openChangePassword() {
       this.showUserCard = false;
+      this.passwordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
+      this.passwordError = '';
       this.showPasswordModal = true;
     },
 
     openAboutModal() {
       this.showUserCard = false;
-      this.showAboutModal = true;
+      uni.showToast({
+        title: '当前为论文管理系统v1.0版本',
+        icon: 'none'
+      });
     },
     
     // 关闭修改密码弹窗
     closePasswordModal() {
       this.showPasswordModal = false;
-      this.passwordForm = { oldPassword: '', newPassword: '', confirmPassword: '' };
+      this.passwordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
       this.passwordError = '';
     },
     
     // 提交修改密码
     async submitChangePassword() {
-      const { oldPassword, newPassword, confirmPassword } = this.passwordForm;
+      const { currentPassword, newPassword, confirmPassword } = this.passwordForm;
       
-      // 密码表单验证
-      if (!oldPassword) {
+      // 密码表单验证（生产环境不输出密码信息）
+      if (!currentPassword) {
         this.passwordError = '请输入当前密码';
         return;
       }
@@ -448,7 +436,7 @@ export default {
         this.passwordError = '两次输入的新密码不一致';
         return;
       }
-      if (oldPassword === newPassword) {
+      if (currentPassword === newPassword) {
         this.passwordError = '新密码不能与当前密码相同';
         return;
       }
@@ -463,13 +451,13 @@ export default {
         uni.showLoading({ title: '修改中...', mask: true });
         
         const res = await changePassword({
-          old_password: oldPassword,
+          old_password: currentPassword,
           new_password: newPassword
         });
         
         uni.hideLoading();
         
-        // 判断修改成功
+        // 判断修改成功（后端返回 message 或 HTTP 状态码为 200）
         if (res && (res.message?.includes('成功') || res.code === 200)) {
           uni.showToast({ title: '密码修改成功，请重新登录', icon: 'success', duration: 2000 });
           this.closePasswordModal();
@@ -478,6 +466,7 @@ export default {
             uni.reLaunch({ url: '/pages/index/index' });
           }, 2000);
         } else {
+          // 显示后端返回的错误信息
           this.passwordError = res?.detail || res?.message || '密码修改失败';
         }
       } catch (err) {
@@ -539,43 +528,38 @@ export default {
         uni.navigateTo({ url: '/pages/student/paperList' });
       }, 300);
     },
-    getPaperAttachmentCount(paperId) {
-      // 统计指定论文的附件数量
-      return this.attachmentList.filter(item => item._paperId === paperId || item.paperId === paperId).length;
+    getSidebarAttachmentName(name) {
+      if (!name) return '未命名附件';
+      if (name.length <= 10) return name;
+      return name.substring(0, 10) + '...';
     },
-    getShortTitle(title) {
-      // 截取简短论文名称，最多显示8个字符
-      if (!title) return '未命名';
-      if (title.length <= 8) return title;
-      return title.substring(0, 8) + '...';
+    handleSidebarItemClick(attachment) {
+      if (!attachment || !attachment.id) return;
+
+      const targetId = attachment.id;
+      const targetIndex = this.attachmentList.findIndex(item => item.id === targetId);
+      if (targetIndex === -1) return;
+
+      const targetItem = this.attachmentList[targetIndex];
+      const remainingItems = this.attachmentList.filter(item => item.id !== targetId);
+      this.attachmentList = [targetItem, ...remainingItems];
+
+      this.highlightedAttachmentId = targetId;
+      if (this._attachmentHighlightTimer) {
+        clearTimeout(this._attachmentHighlightTimer);
+      }
+      this._attachmentHighlightTimer = setTimeout(() => {
+        this.highlightedAttachmentId = null;
+        this._attachmentHighlightTimer = null;
+      }, 2000);
     },
-    
-    sortAttachmentsByPaper(paperId) {
-      // 如果点击的是当前已激活的论文，则取消排序
-      if (this.activeSort === paperId) {
-        this.activeSort = null;
-        // 恢复原始顺序
-        if (this.originalAttachmentList && this.originalAttachmentList.length > 0) {
-          this.attachmentList = JSON.parse(JSON.stringify(this.originalAttachmentList));
-        }
-        return;
-      }
-      
-      // 首次排序时保存原始顺序（深拷贝）
-      if (!this.originalAttachmentList || this.originalAttachmentList.length === 0) {
-        this.originalAttachmentList = JSON.parse(JSON.stringify(this.attachmentList));
-      }
-      
-      this.activeSort = paperId;
-      
-      // 基于原始顺序进行排序：指定论文的附件置顶
-      const sourceList = JSON.parse(JSON.stringify(this.originalAttachmentList));
-      const matchingAttachments = sourceList.filter(a => a._paperId === paperId || a.paperId === paperId);
-      const nonMatchingAttachments = sourceList.filter(a => a._paperId !== paperId && a.paperId !== paperId);
-      const sortedList = [...matchingAttachments, ...nonMatchingAttachments];
-      
-      // 直接赋值新数组以触发 Vue 响应式更新和过渡动画
-      this.attachmentList = sortedList;
+    syncSidebarAttachments() {
+      this.sidebarAttachments = this.attachmentList.map(item => ({
+        id: item.id,
+        name: item.name,
+        type: item.type,
+        size: item.size
+      }));
     },
     getFileIcon(type) {
       const iconMap = {
@@ -610,6 +594,7 @@ export default {
       if (!isValidUserId(userId)) {
         this.loading = false;
         this.attachmentList = [];
+        this.sidebarAttachments = [];
         return;
       }
 
@@ -628,16 +613,10 @@ export default {
           papers = paperRes.data;
         }
         
-        // 保存论文列表（限制显示数量，避免侧边栏过长）
-        this.papers = papers.map(p => ({
-          id: p.id,
-          title: `论文${p.id}`,
-          status: p.status
-        })).filter(p => p.id && !isNaN(parseInt(p.id)));
-        
         // 提取论文ID
-        this.paperIds = this.papers.map(p => p.id);
-        console.log('[附件列表] 论文列表:', this.papers);
+        this.paperIds = papers
+          .map(p => p.id)
+          .filter(id => id && !isNaN(parseInt(id)));
         console.log('[附件列表] 论文ID列表:', this.paperIds);
         
         // 第二步：逐个获取每个论文的附件
@@ -673,6 +652,7 @@ export default {
           seenIds.add(f.id);
           return true;
         });
+        this.syncSidebarAttachments();
         
         console.log('[附件列表] 汇总附件总数:', this.attachmentList.length);
         
@@ -692,6 +672,9 @@ export default {
         const cachedData = uni.getStorageSync('studentAttachments');
         if (cachedData && Array.isArray(cachedData)) {
           this.attachmentList = cachedData;
+          this.syncSidebarAttachments();
+        } else {
+          this.sidebarAttachments = [];
         }
       }
     },
@@ -731,13 +714,16 @@ export default {
         const savedAttachments = uni.getStorageSync('studentAttachments');
         if (savedAttachments && Array.isArray(savedAttachments) && savedAttachments.length > 0) {
           this.attachmentList = savedAttachments;
+          this.syncSidebarAttachments();
         } else {
           this.attachmentList = this.backupAttachmentList;
+          this.syncSidebarAttachments();
           uni.setStorageSync('studentAttachments', this.attachmentList);
         }
       } catch (error) {
         console.error('加载附件数据失败:', error);
         this.attachmentList = this.backupAttachmentList;
+        this.syncSidebarAttachments();
       }
     },
     formatAttachmentData(list) {
@@ -930,6 +916,10 @@ export default {
           
           // 更新前端列表
           this.attachmentList = this.attachmentList.filter(item => item.id !== id);
+          this.sidebarAttachments = this.sidebarAttachments.filter(item => item.id !== id);
+          if (this.highlightedAttachmentId === id) {
+            this.highlightedAttachmentId = null;
+          }
           uni.showToast({ title: '删除成功', icon: 'success' });
         } catch (error) {
           console.error('删除失败:', error);
@@ -1656,45 +1646,6 @@ export default {
   transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* ==================== 激活状态过渡优化 ==================== */
-.stat-item.active {
-  background: var(--primary);
-  box-shadow: var(--shadow-primary);
-  animation: activePulse 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes activePulse {
-  0% { transform: scale(0.95); }
-  50% { transform: scale(1.02); }
-  100% { transform: scale(1); }
-}
-
-.stat-item.active .stat-value {
-  animation: countUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes countUp {
-  0% { transform: scale(0.8); opacity: 0.5; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-.stat-item.active::before {
-  background: #ffffff;
-}
-
-.stat-item.active .stat-icon {
-  background-color: rgba(255, 255, 255, 0.3);
-  color: #ffffff;
-}
-
-.stat-item.active .stat-label {
-  color: #ffffff;
-}
-
-.stat-item.active .stat-value {
-  color: #ffffff;
-}
-
 /* ==================== 统计图标动画优化 ==================== */
 .stat-icon {
   font-size: 44rpx;
@@ -1721,10 +1672,6 @@ export default {
   color: #fff;
 }
 
-.stat-item.active:hover .stat-icon {
-  transform: scale(1.1);
-}
-
 .stat-content {
   flex: 1;
   display: flex;
@@ -1733,12 +1680,19 @@ export default {
   min-width: 0;
 }
 
-.paper-stat-item .stat-label {
+.attachment-stat-item .stat-label {
   display: block;
   width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: left;
+}
+
+.attachment-stat-item .stat-value {
+  font-size: 22rpx;
+  font-weight: 500;
+  color: var(--on-surface-variant);
   text-align: left;
 }
 
@@ -1988,10 +1942,36 @@ export default {
   margin: 0 25rpx;
 }
 
+.attachment-card.highlighted {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4rpx rgba(0, 91, 191, 0.14), var(--shadow-lg);
+  animation: attachmentHighlightPulse 2s ease;
+}
+
+@keyframes attachmentHighlightPulse {
+  0% {
+    border-color: rgba(0, 91, 191, 0.4);
+    box-shadow: 0 0 0 0 rgba(0, 91, 191, 0.22), var(--shadow);
+  }
+  30% {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 6rpx rgba(0, 91, 191, 0.18), var(--shadow-lg);
+  }
+  100% {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4rpx rgba(0, 91, 191, 0.14), var(--shadow-lg);
+  }
+}
+
 .attachment-card:hover {
   transform: translateY(-6rpx) scale(1.01);
   box-shadow: var(--shadow-lg);
   border-color: var(--primary-fixed);
+}
+
+.attachment-card.highlighted:hover {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4rpx rgba(0, 91, 191, 0.14), var(--shadow-lg);
 }
 
 .attachment-card:active {
@@ -2420,153 +2400,137 @@ export default {
   }
 }
 
-/* 修改密码弹窗 */
-.modal-content {
-  width: 90%;
-  max-width: 800rpx;
-  background: #fff;
-  border-radius: 20rpx;
-  box-sizing: border-box;
-  overflow: hidden;
-  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.1);
-  animation: modalContentIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes modalContentIn {
-  from {
-    opacity: 0;
-    transform: translateY(-30rpx) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.modal-content .modal-header {
+.modal-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 30rpx;
-  border-bottom: 1rpx solid #e2e8f0;
+  justify-content: space-between;
+  padding: var(--spacing-4) var(--spacing-5);
+  background: var(--surface-container-low);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
-.modal-content .modal-title {
-  font-size: 36rpx;
+.modal-title {
+  font-size: 1.125rem;
   font-weight: 600;
-  color: #1a202c;
+  font-family: var(--font-body);
+  color: var(--on-surface);
 }
 
-.modal-content .modal-close {
-  font-size: 50rpx;
-  color: #718096;
-  width: 50rpx;
-  height: 50rpx;
-  text-align: center;
-  transition: all 0.2s ease;
-}
-
-.modal-content .modal-close:active {
-  color: #1677ff;
-  transform: scale(0.9);
-}
-
-.modal-content .modal-body {
-  padding: 30rpx;
-}
-
-.modal-content .form-item {
-  margin-bottom: 20rpx;
-}
-
-.modal-content .form-label {
-  display: block;
-  font-size: 28rpx;
-  font-weight: 500;
-  color: #2d3748;
-  margin-bottom: 10rpx;
-}
-
-.modal-content .form-input {
-  width: 100%;
-  height: 80rpx;
-  padding: 0 20rpx;
-  border: 2rpx solid #e2e8f0;
-  border-radius: 12rpx;
-  font-size: 30rpx;
-  color: #2d3748;
-  background-color: #fff;
-  box-sizing: border-box;
-  transition: all 0.2s ease;
-}
-
-.modal-content .form-input:focus {
-  border-color: #1677ff;
-  outline: none;
-  box-shadow: 0 0 0 3rpx rgba(22, 119, 255, 0.1);
-}
-
-.modal-content .form-tips {
-  margin-top: 20rpx;
-  padding: 20rpx;
-  background: #fef3c7;
-  border-radius: 12rpx;
-}
-
-.modal-content .form-tips.error-tips {
-  background: #ffdad6;
-}
-
-.modal-content .tips-text {
-  font-size: 26rpx;
-  color: #92400e;
-}
-
-.modal-content .tips-text.error-text {
-  color: #410002;
-}
-
-.modal-content .modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 20rpx;
-  padding: 20rpx 30rpx;
-  border-top: 1rpx solid #e2e8f0;
-}
-
-.modal-content .btn {
-  padding: 15rpx 30rpx;
-  border-radius: 8rpx;
-  font-size: 28rpx;
-  border: none;
+.modal-close {
+  font-size: 1.5rem;
+  color: var(--on-surface-variant);
   cursor: pointer;
-  transition: all 0.2s ease;
+  padding: var(--spacing-1);
+  transition: color 0.2s;
 }
 
-.modal-content .btn-cancel {
-  background-color: #f7fafc;
-  color: #718096;
-  border: 1rpx solid #e2e8f0;
+.modal-close:hover {
+  color: var(--on-surface);
 }
 
-.modal-content .btn-cancel:hover {
-  background-color: #edf2f7;
+.modal-body {
+  padding: var(--spacing-5);
+  flex: 1;
+  overflow-y: auto;
 }
 
-.modal-content .btn-confirm {
-  background-color: #1677ff;
-  color: #fff;
+.modal-footer {
+  display: flex;
+  padding: var(--spacing-4) var(--spacing-5);
+  gap: var(--spacing-3);
+  background: var(--surface-container-low);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
-.modal-content .btn-confirm:hover {
-  background-color: #0056b3;
+/* 表单样式 */
+.form-item {
+  margin-bottom: var(--spacing-4);
 }
 
-.modal-content .btn:active {
-  transform: scale(0.98);
+.form-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+  margin-bottom: var(--spacing-2);
 }
 
-/* 保留其他样式 */
+.form-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 var(--spacing-4);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+  background: var(--surface-container-low);
+  box-sizing: border-box;
+  transition: all 0.2s;
+}
+
+.form-input:focus {
+  background: var(--surface-container-high);
+  outline: none;
+}
+
+.form-tips {
+  margin-top: var(--spacing-3);
+  padding: var(--spacing-3);
+  background: var(--amber-tint);
+  border-radius: var(--radius-md);
+}
+
+.form-tips.error-tips {
+  background: var(--error-container);
+}
+
+.tips-text {
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-family: var(--font-body);
+  color: var(--on-amber);
+}
+
+.tips-text.error-text {
+  color: var(--on-error-container);
+}
+
+/* 按钮样式 */
+.btn {
+  flex: 1;
+  height: 44px;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-cancel {
+  background: var(--surface-container-high);
+  color: var(--on-surface-variant);
+}
+
+.btn-cancel:hover {
+  background: var(--surface-container-low);
+}
+
+.btn-confirm {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
+  color: white;
+  box-shadow: var(--shadow-primary);
+}
+
+.btn-confirm:hover {
+  box-shadow: 0 6px 20px rgba(0, 91, 191, 0.35);
+  transform: translateY(-1px);
+}
 
 /* 关于系统弹窗 */
 .about-modal-body {

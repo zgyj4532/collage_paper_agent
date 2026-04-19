@@ -330,7 +330,7 @@ export function uploadPaper(params) {
   
   const url = `/api/v1/papers/upload?owner_id=${encodeURIComponent(ownerId)}&teacher_id=${encodeURIComponent(teacherId)}&current_user=${encodeURIComponent(currentUser)}`;
   
-  return uploadFile(url, params.filePath, 'file', {});
+  return uploadFile(url, params.filePath, 'file', {}, { silentError: true });
 }
 
 export function callAIAgentCheck(paperId) {
@@ -680,6 +680,71 @@ export function getPaperReview(paperId) {
   }));
   
   return get(`/api/v1/papers/${paperId}/review`, { current_user: currentUser });
+}
+
+/**
+ * 检查学生智能体使用权限
+ * @param {string} studentId - 学生学号（username）
+ * @returns {Promise}
+ */
+export function checkAgentPermission(studentId) {
+  if (!studentId) {
+    return Promise.reject(new Error('学生学号不能为空'));
+  }
+
+  return get('/api/v1/agent/check-permission', {
+    student_id: studentId
+  }, false);
+}
+
+/**
+ * 学生请求智能体使用权限
+ * @param {string} adminId - 管理员ID（如 a123）
+ * @returns {Promise}
+ */
+export function requestAgentPermission(adminId) {
+  const normalizedAdminId = String(adminId || '').trim();
+  if (!normalizedAdminId) {
+    return Promise.reject(new Error('请输入管理员ID'));
+  }
+
+  return post('/api/v1/agent/request-agent-permission', {}, false, {
+    admin_id: normalizedAdminId,
+    current_user: JSON.stringify(buildCurrentUser())
+  });
+}
+
+/**
+ * 调用智能体提交论文审核任务
+ * @param {number} paperId - 论文ID
+ * @param {string} version - 论文版本号（如 v1.0）
+ * @returns {Promise} 返回 { task_id: ... }
+ */
+export function callAgentAudit(paperId, version) {
+  return post(`/api/v1/agent/audit?paper_id=${encodeURIComponent(paperId)}&version=${encodeURIComponent(version)}`);
+}
+
+/**
+ * 通过论文ID和版本号查询对应的智能体任务ID
+ * @param {number} paperId - 论文ID
+ * @param {string} version - 论文版本号（如 v1.0）
+ * @returns {Promise} 返回 { task_id, paper_id, version }
+ */
+export function getAgentTaskByPaper(paperId, version) {
+  return get(`/api/v1/agent/tasks/by-paper`, {
+    paper_id: paperId,
+    version: version
+  });
+}
+
+/** 智能体：查询任务进度 GET /api/v1/agent/tasks/{task_id} */
+export function getAgentTask(taskId) {
+  return get(`/api/v1/agent/tasks/${taskId}`);
+}
+
+/** 智能体：获取 JSON 报告 GET /api/v1/agent/report/{task_id} */
+export function getAgentReport(taskId) {
+  return get(`/api/v1/agent/report/${taskId}`);
 }
 
 // ==================== 用户信息绑定接口 ====================

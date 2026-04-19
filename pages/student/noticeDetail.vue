@@ -184,27 +184,6 @@
       </view>
     </view>
     
-    <!-- 关于系统弹窗 -->
-    <view v-if="showAboutModal" class="modal-backdrop" @click.self="showAboutModal = false">
-      <view class="modal-content about-modal">
-        <view class="modal-header">
-          <text class="modal-title">关于系统</text>
-          <text class="modal-close" @click="showAboutModal = false">×</text>
-        </view>
-        <view class="modal-body about-modal-body">
-          <view class="about-icon">
-            <text class="material-symbols-outlined">school</text>
-          </view>
-          <view class="about-title">计测学院毕业论文管理系统</view>
-          <view class="about-version">v1.0</view>
-          <view class="about-desc">为学院师生提供论文管理、审阅和反馈功能。</view>
-        </view>
-        <view class="modal-footer">
-          <view class="btn btn-confirm" @click="showAboutModal = false">确定</view>
-        </view>
-      </view>
-    </view>
-    
     <!-- 修改密码弹窗 -->
     <view v-if="showPasswordModal" class="modal-backdrop" @click.self="closePasswordModal">
       <view class="modal-content password-modal-content student-user-panel-modal">
@@ -218,7 +197,7 @@
             <input 
               class="user-panel-form-input"
               type="password" 
-              v-model="passwordForm.oldPassword"
+              v-model="passwordForm.currentPassword"
               placeholder="请输入当前密码"
             />
           </view>
@@ -240,6 +219,12 @@
               placeholder="请再次输入新密码"
             />
           </view>
+          <view class="user-panel-form-tips" v-if="!passwordError">
+            <text class="user-panel-tips-text">密码修改成功后需要重新登录</text>
+          </view>
+          <view class="user-panel-form-tips error-tips" v-else>
+            <text class="user-panel-tips-text error-text">{{ passwordError }}</text>
+          </view>
         </view>
         <view class="user-panel-footer">
           <view class="user-panel-btn user-panel-btn-cancel" @click="closePasswordModal">取消</view>
@@ -247,6 +232,7 @@
         </view>
       </view>
     </view>
+    
   </view>
 </template>
 
@@ -278,18 +264,14 @@ export default {
       currentNotice: {},
       // 用户卡片
       showUserCard: false,
-      
       // 修改密码弹窗
       showPasswordModal: false,
       passwordForm: {
-        oldPassword: '',
+        currentPassword: '',
         newPassword: '',
         confirmPassword: ''
       },
-      passwordError: '',
-      
-      // 关于系统弹窗
-      showAboutModal: false
+      passwordError: ''
     };
   },
   computed: {
@@ -358,30 +340,35 @@ export default {
       }, 1000);
     },
     
-    // 跳转到修改密码页面
+    // 打开修改密码弹窗
     openChangePassword() {
       this.showUserCard = false;
+      this.passwordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
+      this.passwordError = '';
       this.showPasswordModal = true;
     },
 
     openAboutModal() {
       this.showUserCard = false;
-      this.showAboutModal = true;
+      uni.showToast({
+        title: '当前为论文管理系统v1.0版本',
+        icon: 'none'
+      });
     },
     
     // 关闭修改密码弹窗
     closePasswordModal() {
       this.showPasswordModal = false;
-      this.passwordForm = { oldPassword: '', newPassword: '', confirmPassword: '' };
+      this.passwordForm = { currentPassword: '', newPassword: '', confirmPassword: '' };
       this.passwordError = '';
     },
     
     // 提交修改密码
     async submitChangePassword() {
-      const { oldPassword, newPassword, confirmPassword } = this.passwordForm;
+      const { currentPassword, newPassword, confirmPassword } = this.passwordForm;
       
-      // 密码表单验证
-      if (!oldPassword) {
+      // 密码表单验证（生产环境不输出密码信息）
+      if (!currentPassword) {
         this.passwordError = '请输入当前密码';
         return;
       }
@@ -397,7 +384,7 @@ export default {
         this.passwordError = '两次输入的新密码不一致';
         return;
       }
-      if (oldPassword === newPassword) {
+      if (currentPassword === newPassword) {
         this.passwordError = '新密码不能与当前密码相同';
         return;
       }
@@ -412,13 +399,13 @@ export default {
         uni.showLoading({ title: '修改中...', mask: true });
         
         const res = await changePassword({
-          old_password: oldPassword,
+          old_password: currentPassword,
           new_password: newPassword
         });
         
         uni.hideLoading();
         
-        // 判断修改成功
+        // 判断修改成功（后端返回 message 或 HTTP 状态码为 200）
         if (res && (res.message?.includes('成功') || res.code === 200)) {
           uni.showToast({ title: '密码修改成功，请重新登录', icon: 'success', duration: 2000 });
           this.closePasswordModal();
@@ -427,6 +414,7 @@ export default {
             uni.reLaunch({ url: '/pages/index/index' });
           }, 2000);
         } else {
+          // 显示后端返回的错误信息
           this.passwordError = res?.detail || res?.message || '密码修改失败';
         }
       } catch (err) {
@@ -585,7 +573,7 @@ export default {
 };
 </script>
 
-<style>
+<style scoped>
 /* ===== CSS 变量（与工作台保持一致） ===== */
 .notice-detail-page {
   /* Primary Colors */
@@ -1119,13 +1107,14 @@ export default {
   background: var(--surface-container-lowest);
   border-radius: var(--radius-lg);
   width: 90%;
-  max-width: 400px;
-  max-height: 80vh;
+  max-width: 700px;
+  max-height: 85vh;
   overflow: hidden;
   box-shadow: var(--shadow-ambient);
   animation: modalSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 /* 修改密码弹窗特定样式 - 固定宽度 400px */
@@ -1168,246 +1157,70 @@ export default {
   }
 }
 
-/* 修改密码弹窗 */
-.modal-content {
-  width: 90%;
-  max-width: 800rpx;
-  background: #fff;
-  border-radius: 20rpx;
-  box-sizing: border-box;
-  overflow: hidden;
-  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.1);
-  animation: modalContentIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-4) var(--spacing-6);
+  background: var(--surface-container-low);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  min-height: 56px;
 }
 
-@keyframes modalContentIn {
-  from {
-    opacity: 0;
-    transform: translateY(-30rpx) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+.modal-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  color: var(--on-surface);
 }
 
-.modal-content .modal-header {
+.modal-close {
+  font-size: 1.5rem;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  padding: var(--spacing-1);
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+}
+
+.modal-close:hover {
+  color: var(--on-surface);
+  background: var(--surface-container-high);
+}
+
+.modal-body {
+  padding: var(--spacing-6);
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  max-height: calc(85vh - 140px);
+}
+
+.detail-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 30rpx;
-  border-bottom: 1rpx solid #e2e8f0;
-}
-
-.modal-content .modal-title {
-  font-size: 36rpx;
-  font-weight: 600;
-  color: #1a202c;
-}
-
-.modal-content .modal-close {
-  font-size: 50rpx;
-  color: #718096;
-  width: 50rpx;
-  height: 50rpx;
-  text-align: center;
-  transition: all 0.2s ease;
-}
-
-.modal-content .modal-close:active {
-  color: #1677ff;
-  transform: scale(0.9);
-}
-
-.modal-content .modal-body {
-  padding: 30rpx;
-}
-
-.modal-content .form-item {
-  margin-bottom: 20rpx;
-}
-
-.modal-content .form-label {
-  display: block;
-  font-size: 28rpx;
-  font-weight: 500;
-  color: #2d3748;
-  margin-bottom: 10rpx;
-}
-
-.modal-content .form-input {
-  width: 100%;
-  height: 80rpx;
-  padding: 0 20rpx;
-  border: 2rpx solid #e2e8f0;
-  border-radius: 12rpx;
-  font-size: 30rpx;
-  color: #2d3748;
-  background-color: #fff;
-  box-sizing: border-box;
-  transition: all 0.2s ease;
-}
-
-.modal-content .form-input:focus {
-  border-color: #1677ff;
-  outline: none;
-  box-shadow: 0 0 0 3rpx rgba(22, 119, 255, 0.1);
-}
-
-.modal-content .form-tips {
-  margin-top: 20rpx;
-  padding: 20rpx;
-  background: #fef3c7;
-  border-radius: 12rpx;
-}
-
-.modal-content .form-tips.error-tips {
-  background: #ffdad6;
-}
-
-.modal-content .tips-text {
-  font-size: 26rpx;
-  color: #92400e;
-}
-
-.modal-content .tips-text.error-text {
-  color: #410002;
-}
-
-.modal-content .modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 20rpx;
-  padding: 20rpx 30rpx;
-  border-top: 1rpx solid #e2e8f0;
-}
-
-.modal-content .btn {
-  padding: 15rpx 30rpx;
-  border-radius: 8rpx;
-  font-size: 28rpx;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.modal-content .btn-cancel {
-  background-color: #f7fafc;
-  color: #718096;
-  border: 1rpx solid #e2e8f0;
-}
-
-.modal-content .btn-cancel:hover {
-  background-color: #edf2f7;
-}
-
-.modal-content .btn-confirm {
-  background-color: #1677ff;
-  color: #fff;
-}
-
-.modal-content .btn-confirm:hover {
-  background-color: #0056b3;
-}
-
-.modal-content .btn:active {
-  transform: scale(0.98);
-}
-
-/* 关于系统弹窗 */
-.about-modal-body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: var(--spacing-8);
-  text-align: center;
-}
-
-.about-icon {
-  width: 64px;
-  height: 64px;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
-  border-radius: var(--radius-lg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   margin-bottom: var(--spacing-4);
 }
 
-.about-icon .material-symbols-outlined {
-  font-size: 32px;
-  color: white;
-}
-
-.about-title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--on-surface);
-  margin-bottom: var(--spacing-2);
-}
-
-.about-version {
-  font-size: 0.875rem;
-  font-weight: 400;
-  color: var(--on-surface-variant);
-  margin-bottom: var(--spacing-4);
-}
-
-.about-desc {
-  font-size: 0.875rem;
-  font-weight: 400;
-  color: var(--on-surface-variant);
-  line-height: 1.6;
-}
-
-/* 通用弹窗按钮样式 */
-.btn {
-  flex: 1;
-  padding: 16px;
-  text-align: center;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.btn-cancel {
-  color: var(--on-surface-variant);
-  border-right: 1px solid var(--surface-container-high);
-}
-
-.btn-cancel:hover {
-  background: #f0f0f0;
-}
-
-.btn-confirm {
-  color: var(--primary);
-}
-
-.btn-confirm:hover {
-  background: rgba(0, 91, 191, 0.08);
-}
-
-/* 详情弹窗特定样式 */
 .detail-type-badge {
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
   padding: var(--spacing-1) var(--spacing-3);
   border-radius: var(--radius-full);
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 600;
 }
 
 .detail-type-badge.system {
   background: var(--primary-fixed);
   color: var(--primary);
-}
-
-.detail-type-badge.status {
-  background: var(--secondary-container);
-  color: var(--on-secondary-container);
 }
 
 .detail-type-badge.deadline {
@@ -1919,8 +1732,15 @@ export default {
   color: var(--on-surface-variant);
 }
 
+.user-card-menu-item.logout .material-symbols-outlined {
+  color: var(--error);
+}
+
+/* ===== 弹窗样式 ===== */
+
+/* 表单样式 */
 .form-item {
-  margin-bottom: var(--spacing-6);
+  margin-bottom: var(--spacing-4);
 }
 
 .form-label {
@@ -1929,31 +1749,31 @@ export default {
   font-weight: 500;
   font-family: var(--font-body);
   color: var(--on-surface);
-  margin-bottom: var(--spacing-3);
-  font-family: var(--font-body);
+  margin-bottom: var(--spacing-2);
 }
 
 .form-input {
   width: 100%;
-  height: 48px;
+  height: 44px;
   padding: 0 var(--spacing-4);
-  border: 1px solid var(--outline-variant);
+  border: none;
   border-radius: var(--radius-md);
-  font-size: 1rem;
+  font-size: 0.875rem;
   font-family: var(--font-body);
-  background: var(--surface-container-lowest);
-  transition: all 0.2s ease;
+  color: var(--on-surface);
+  background: var(--surface-container-low);
+  box-sizing: border-box;
+  transition: all 0.2s;
 }
 
 .form-input:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(0, 91, 191, 0.1);
+  background: var(--surface-container-high);
   outline: none;
 }
 
 .form-tips {
-  margin-top: var(--spacing-5);
-  padding: var(--spacing-4);
+  margin-top: var(--spacing-3);
+  padding: var(--spacing-3);
   background: var(--amber-tint);
   border-radius: var(--radius-md);
 }
@@ -1963,7 +1783,9 @@ export default {
 }
 
 .tips-text {
-  font-size: 0.875rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-family: var(--font-body);
   color: var(--on-amber);
 }
 
@@ -1972,21 +1794,38 @@ export default {
 }
 
 /* 按钮样式 */
+.btn {
+  flex: 1;
+  height: 44px;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .btn-cancel {
+  background: var(--surface-container-high);
   color: var(--on-surface-variant);
-  border-right: 1px solid var(--surface-container-high);
 }
 
 .btn-cancel:hover {
-  background: #f0f0f0;
+  background: var(--surface-container-low);
 }
 
 .btn-confirm {
-  color: var(--primary);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
+  color: white;
+  box-shadow: var(--shadow-primary);
 }
 
 .btn-confirm:hover {
-  background: rgba(0, 91, 191, 0.08);
+  box-shadow: 0 6px 20px rgba(0, 91, 191, 0.35);
+  transform: translateY(-1px);
 }
 
 /* 关于系统弹窗 */
@@ -2036,70 +1875,381 @@ export default {
   line-height: 1.6;
 }
 
-/* 通用弹窗内部样式 */
-.modal-header {
+/* ===== 工作台同款用户菜单样式（放在文件尾部以覆盖页面通用规则） ===== */
+.student-profile-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  cursor: pointer;
+  padding: var(--spacing-1) var(--spacing-3) var(--spacing-1) var(--spacing-1);
+  border-radius: var(--radius-full);
+  transition: background 0.2s;
+}
+
+.student-profile-btn:hover {
+  background: var(--surface-container-low);
+}
+
+.student-profile-btn .profile-avatar {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-display);
+}
+
+.student-profile-btn .profile-name {
+  font-size: 16px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+}
+
+.student-profile-btn .profile-role {
+  font-size: 12px;
+  font-weight: 400;
+  font-family: var(--font-body);
+  color: var(--on-surface-variant);
+}
+
+.student-user-card {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 380px;
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-ambient);
+  z-index: 100;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-10px) scale(0.95);
+  transform-origin: top right;
+  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.student-user-card.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.student-user-card .user-card-header {
+  padding: var(--spacing-6);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-5);
+}
+
+.student-user-card .user-card-avatar {
+  width: 56px;
+  height: 56px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 22px;
+  font-weight: 600;
+  font-family: var(--font-display);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.student-user-card .user-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.student-user-card .user-card-info .user-name {
+  font-size: 17px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  color: white;
+}
+
+.student-user-card .user-card-info .user-id {
+  font-size: 13px;
+  font-weight: 400;
+  font-family: var(--font-body);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.student-user-card .user-role-badge {
+  display: inline-flex;
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font-body);
+  color: white;
+  width: fit-content;
+}
+
+.student-user-card .user-card-menu {
+  padding: var(--spacing-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.student-user-card .user-card-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 15px;
+  font-weight: 500;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+}
+
+.student-user-card .user-card-menu-item:hover {
+  background: var(--surface-container-low);
+}
+
+.student-user-card .user-card-menu-item.logout {
+  color: var(--error);
+}
+
+.student-user-card .user-card-menu-item.logout:hover {
+  background: var(--error-container);
+}
+
+.student-user-card .user-card-menu-item .material-symbols-outlined {
+  font-size: 20px;
+  color: var(--on-surface-variant);
+}
+
+.student-user-card .user-card-menu-item.logout .material-symbols-outlined {
+  color: var(--error);
+}
+
+.student-user-panel-modal {
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 400px;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: var(--shadow-ambient);
+  animation: modalSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.student-user-panel-modal .user-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: var(--spacing-4) var(--spacing-5);
   background: var(--surface-container-low);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  min-height: 56px;
+  min-height: auto;
 }
 
-.modal-title {
+.student-user-panel-modal .user-panel-header.logout-header {
+  background: linear-gradient(135deg, #fc8181 0%, #f56565 100%);
+}
+
+.student-user-panel-modal .user-panel-header.logout-header .user-panel-title,
+.student-user-panel-modal .user-panel-header.logout-header .user-panel-close {
+  color: white;
+}
+
+.student-user-panel-modal .user-panel-title {
   font-size: 1.125rem;
   font-weight: 600;
   font-family: var(--font-body);
   color: var(--on-surface);
 }
 
-.modal-close {
+.student-user-panel-modal .user-panel-close {
   font-size: 1.5rem;
   color: var(--on-surface-variant);
   cursor: pointer;
   padding: var(--spacing-1);
   transition: color 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
 }
 
-.modal-close:hover {
+.student-user-panel-modal .user-panel-close:hover {
   color: var(--on-surface);
-  background: var(--surface-container-high);
 }
 
-.modal-body {
-  padding: var(--spacing-6);
+.student-user-panel-modal .user-panel-body {
+  padding: var(--spacing-5);
   flex: 1;
   overflow-y: auto;
 }
 
-.modal-footer {
+.student-user-panel-modal .user-panel-footer {
   display: flex;
-  border-top: 1px solid var(--surface-container-high);
   padding: var(--spacing-4) var(--spacing-5);
+  gap: var(--spacing-3);
+  background: var(--surface-container-low);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
-.btn-cancel {
+.student-user-panel-modal .user-panel-form-item {
+  margin-bottom: var(--spacing-4);
+}
+
+.student-user-panel-modal .user-panel-form-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+  margin-bottom: var(--spacing-2);
+}
+
+.student-user-panel-modal .user-panel-form-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 var(--spacing-4);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+  background: var(--surface-container-low);
+  box-sizing: border-box;
+  transition: all 0.2s;
+}
+
+.student-user-panel-modal .user-panel-form-input:focus {
+  background: var(--surface-container-high);
+  outline: none;
+}
+
+.student-user-panel-modal .user-panel-form-tips {
+  margin-top: var(--spacing-3);
+  padding: var(--spacing-3);
+  background: var(--amber-tint);
+  border-radius: var(--radius-md);
+}
+
+.student-user-panel-modal .user-panel-form-tips.error-tips {
+  background: var(--error-container);
+}
+
+.student-user-panel-modal .user-panel-tips-text {
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-family: var(--font-body);
+  color: var(--on-amber);
+}
+
+.student-user-panel-modal .user-panel-tips-text.error-text {
+  color: var(--on-error-container);
+}
+
+.student-user-panel-modal .user-panel-btn {
+  flex: 1;
+  height: 44px;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.student-user-panel-modal .user-panel-btn-cancel {
+  background: var(--surface-container-high);
   color: var(--on-surface-variant);
-  border-right: 1px solid var(--surface-container-high);
 }
 
-.btn-cancel:hover {
-  background: #f0f0f0;
+.student-user-panel-modal .user-panel-btn-cancel:hover {
+  background: var(--surface-container-low);
 }
 
-.btn-confirm {
-  color: var(--primary);
+.student-user-panel-modal .user-panel-btn-confirm {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
+  color: white;
+  box-shadow: var(--shadow-primary);
 }
 
-.btn-confirm:hover {
-  background: rgba(0, 91, 191, 0.08);
+.student-user-panel-modal .user-panel-btn-confirm:hover {
+  box-shadow: 0 6px 20px rgba(0, 91, 191, 0.35);
+  transform: translateY(-1px);
+}
+
+.student-user-panel-modal .user-panel-btn-logout {
+  background: linear-gradient(135deg, #fc8181 0%, #f56565 100%);
+  color: white;
+}
+
+.student-user-panel-modal .user-panel-btn-logout:hover {
+  box-shadow: 0 4px 12px rgba(245, 101, 101, 0.3);
+}
+
+.student-user-panel-modal .user-panel-about-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-8);
+  text-align: center;
+}
+
+.student-user-panel-modal .user-panel-about-icon {
+  width: 64px;
+  height: 64px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--spacing-4);
+}
+
+.student-user-panel-modal .user-panel-about-icon .material-symbols-outlined {
+  font-size: 32px;
+  color: white;
+}
+
+.student-user-panel-modal .user-panel-about-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  color: var(--on-surface);
+  margin-bottom: var(--spacing-2);
+}
+
+.student-user-panel-modal .user-panel-about-version {
+  font-size: 0.875rem;
+  font-weight: 400;
+  font-family: var(--font-body);
+  color: var(--on-surface-variant);
+  margin-bottom: var(--spacing-4);
+}
+
+.student-user-panel-modal .user-panel-about-desc {
+  font-size: 0.875rem;
+  font-weight: 400;
+  font-family: var(--font-body);
+  color: var(--on-surface-variant);
+  line-height: 1.6;
 }
 
 </style>

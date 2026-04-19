@@ -506,3 +506,13 @@ export function getAgentTask(taskId) {
 export function getAgentReport(taskId) {
 	return get(`/api/v1/agent/report/${taskId}`);
 }
+
+/** 标记消息为已读 PUT /api/v1/notifications/{notification_id}/read
+ * @param {string|number} notificationId - 消息ID
+ * @param {object} currentUser - 当前用户信息 {sub, roles, username}
+ */
+export function markNotificationAsRead(notificationId, currentUser) {
+	return put(`/api/v1/notifications/${notificationId}/read`, {}, true, {
+		current_user: JSON.stringify(currentUser)
+	});
+}

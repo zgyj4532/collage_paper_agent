@@ -3,7 +3,7 @@
 		<!-- 左侧导航：参考「管理员页面设计 / Academic Curator」玻璃侧栏 -->
 		<view class="admin-sidebar">
 			<view class="sidebar-brand">
-				<text class="sidebar-brand-title">学术策展工作台</text>
+				<text class="sidebar-brand-title">毕设智能管理系统</text>
 				<text class="sidebar-brand-en">The Academic Curator</text>
 				<text class="sidebar-brand-sub">管理员门户</text>
 			</view>
@@ -683,24 +683,42 @@
 					</view>
 				</view>
 
-				<!-- 不对称分栏：截止日期（主） + 论文细项（侧） -->
+				<!-- 不对称分栏：左侧（截止日期 + 智能体权限）+ 论文细项（右） -->
 				<view class="dashboard-split">
-					<view class="dash-panel dash-panel--deadlines">
-						<view class="dash-panel-head">
-							<text class="dash-panel-title">截止日期管理</text>
-							<view class="dash-panel-link" @click.stop="showDeadlineManagement">
-								<text>进入管理</text>
+					<view class="dash-left-col">
+						<view class="dash-panel dash-panel--deadlines">
+							<view class="dash-panel-head">
+								<text class="dash-panel-title">截止日期管理</text>
+								<view class="dash-panel-link" @click.stop="showDeadlineManagement">
+									<text>进入管理</text>
+								</view>
+							</view>
+							<view class="dash-deadline-row" @click="showDeadlineManagement">
+								<view class="dash-deadline-cal">
+									<text class="material-symbols-outlined">event</text>
+								</view>
+								<view class="dash-deadline-copy">
+									<text class="dash-deadline-title">查看与管理截止日期</text>
+									<text class="dash-deadline-desc">按教师工号查询，维护各教师设置的截止日期</text>
+								</view>
+								<text class="material-symbols-outlined dash-deadline-chevron">chevron_right</text>
 							</view>
 						</view>
-						<view class="dash-deadline-row" @click="showDeadlineManagement">
-							<view class="dash-deadline-cal">
-								<text class="material-symbols-outlined">event</text>
+
+						<view class="dash-panel dash-panel--agent-permission">
+							<view class="dash-panel-head">
+								<text class="dash-panel-title">智能体权限管理</text>
 							</view>
-							<view class="dash-deadline-copy">
-								<text class="dash-deadline-title">查看与管理截止日期</text>
-								<text class="dash-deadline-desc">按教师工号查询，维护各教师设置的截止日期</text>
+							<view class="dash-deadline-row" @click="openAgentPermissionModal">
+								<view class="dash-deadline-cal dash-deadline-cal--agent">
+									<text class="material-symbols-outlined">smart_toy</text>
+								</view>
+								<view class="dash-deadline-copy">
+									<text class="dash-deadline-title">查看与处理权限申请</text>
+									<text class="dash-deadline-desc">审批学生的智能体使用权限申请，可同意或拒绝</text>
+								</view>
+								<text class="material-symbols-outlined dash-deadline-chevron">chevron_right</text>
 							</view>
-							<text class="material-symbols-outlined dash-deadline-chevron">chevron_right</text>
 						</view>
 					</view>
 
@@ -1356,6 +1374,70 @@
 			</view>
 		</view>
 		
+		<!-- 智能体权限申请弹窗 -->
+		<view v-if="showAgentPermissionModal" class="agent-permission-modal-mask" @click="closeAgentPermissionModal">
+			<view class="agent-permission-modal-content" @click.stop>
+				<view class="admin-custom-modal-header">
+					<text class="material-symbols-outlined">smart_toy</text>
+					<text>智能体权限申请</text>
+					<view v-if="!agentPermissionLoading && agentPermissionList.length > 0" class="agent-count-badge">
+						<text>{{ agentPermissionList.length }}</text>
+					</view>
+					<view class="agent-modal-close" @click="closeAgentPermissionModal">
+						<text class="material-symbols-outlined">close</text>
+					</view>
+				</view>
+				<view class="agent-permission-modal-body">
+					<!-- 加载中 -->
+					<view v-if="agentPermissionLoading" class="agent-permission-loading">
+						<text class="material-symbols-outlined agent-loading-icon">hourglass_top</text>
+						<text class="agent-loading-text">正在加载...</text>
+					</view>
+					<!-- 暂无申请 -->
+					<view v-else-if="agentPermissionList.length === 0" class="agent-permission-empty">
+						<text class="material-symbols-outlined agent-empty-icon">inbox</text>
+						<text class="agent-empty-text">暂无待处理的申请</text>
+					</view>
+					<!-- 申请列表 -->
+					<view v-else class="agent-permission-list">
+						<!-- 数量过多时显示提示条 -->
+						<view v-if="agentPermissionList.length >= 20" class="agent-list-hint">
+							<text class="material-symbols-outlined">info</text>
+							<text>共 {{ agentPermissionList.length }} 条申请，向下滚动查看更多</text>
+						</view>
+						<view
+							v-for="item in agentPermissionList"
+							:key="item.messageId"
+							class="agent-permission-item"
+						>
+							<view class="agent-permission-item-main">
+								<text class="agent-permission-item-content">{{ item.content }}</text>
+								<text class="agent-permission-item-time">{{ item.receivedTime }}</text>
+							</view>
+							<view class="agent-permission-item-actions">
+								<view
+									class="agent-action-btn agent-action-btn--approve"
+									:class="{ 'agent-action-btn--disabled': agentPermissionHandling === item.messageId }"
+									@click="handleAgentPermission(item, 'approve')"
+								>
+									<text class="material-symbols-outlined">check</text>
+									<text>同意</text>
+								</view>
+								<view
+									class="agent-action-btn agent-action-btn--reject"
+									:class="{ 'agent-action-btn--disabled': agentPermissionHandling === item.messageId }"
+									@click="handleAgentPermission(item, 'reject')"
+								>
+									<text class="material-symbols-outlined">close</text>
+									<text>拒绝</text>
+								</view>
+							</view>
+						</view>
+					</view>
+				</view>
+			</view>
+		</view>
+
 		<!-- 截止日期管理弹窗 -->
 		<view v-if="showDeadlineModal" class="deadline-modal" @click="closeDeadlineModal">
 			<view class="deadline-modal-content admin-dialog-sheet admin-dialog-sheet--wide" @click.stop>
@@ -1689,44 +1771,35 @@
 	</view>
 	
 	<!-- 修改密码弹窗 -->
-	<view v-if="showPasswordModal" class="modal-backdrop" @click.self="closePasswordModal">
-		<view class="modal-content password-modal-content">
-			<view class="modal-header">
-				<text class="modal-title">修改密码</text>
-				<text class="modal-close" @click="closePasswordModal">×</text>
+	<view v-if="showPasswordModal" class="admin-custom-modal-mask" @click="closePasswordModal">
+		<view class="admin-custom-modal-content admin-password-modal" @click.stop>
+			<view class="admin-custom-modal-header">
+				<text class="material-symbols-outlined">lock</text>
+				<text>修改密码</text>
 			</view>
-			<view class="modal-body">
-				<view class="form-item">
-					<text class="form-label">当前密码</text>
-					<input 
-						class="form-input" 
-						type="password" 
-						v-model="passwordForm.oldPassword"
-						placeholder="请输入当前密码"
-					/>
+			<view class="admin-password-modal-body">
+				<view class="admin-pwd-form-item">
+					<text class="admin-pwd-form-label">当前密码</text>
+					<input class="admin-pwd-form-input" v-model="passwordForm.oldPassword" placeholder="请输入当前密码" type="password" password />
 				</view>
-				<view class="form-item">
-					<text class="form-label">新密码</text>
-					<input 
-						class="form-input" 
-						type="password" 
-						v-model="passwordForm.newPassword"
-						placeholder="请输入新密码（至少6位）"
-					/>
+				<view class="admin-pwd-form-item">
+					<text class="admin-pwd-form-label">新密码</text>
+					<input class="admin-pwd-form-input" v-model="passwordForm.newPassword" placeholder="请输入新密码（至少6位）" type="password" password />
 				</view>
-				<view class="form-item">
-					<text class="form-label">确认新密码</text>
-					<input 
-						class="form-input" 
-						type="password" 
+				<view class="admin-pwd-form-item">
+					<text class="admin-pwd-form-label">确认新密码</text>
+					<input class="admin-pwd-form-input"
+						:class="{ 'pwd-input-error': passwordError }"
 						v-model="passwordForm.confirmPassword"
 						placeholder="请再次输入新密码"
-					/>
+						type="password" password
+						@input="passwordError = ''"/>
+					<text v-if="passwordError" class="admin-pwd-error-tip">{{ passwordError }}</text>
 				</view>
 			</view>
-			<view class="modal-footer">
-				<view class="btn btn-cancel" @click="closePasswordModal">取消</view>
-				<view class="btn btn-confirm" @click="submitChangePassword">确认修改</view>
+			<view class="admin-custom-modal-footer">
+				<view class="admin-modal-btn cancel" @click="closePasswordModal">取消</view>
+				<view class="admin-modal-btn confirm" @click="submitChangePassword">确认修改</view>
 			</view>
 		</view>
 	</view>
@@ -2029,6 +2102,11 @@
 				// 删除确认弹窗
 				showDeleteDeadlineModal: false,
 				deletingItem: null,
+				// 智能体权限管理
+				showAgentPermissionModal: false,
+				agentPermissionList: [],
+				agentPermissionLoading: false,
+				agentPermissionHandling: null,
 				// 成员详情弹窗
 				showMemberModal: false,
 				currentGroup: null,
@@ -2928,7 +3006,7 @@
 				this.passwordForm = { oldPassword: '', newPassword: '', confirmPassword: '' };
 				this.passwordError = '';
 			},
-			submitChangePassword() {
+			async submitChangePassword() {
 				const { oldPassword, newPassword, confirmPassword } = this.passwordForm;
 				
 				if (!oldPassword) {
@@ -2954,16 +3032,25 @@
 				
 				this.passwordError = '';
 				
-				uni.showLoading({ title: '修改中...', mask: true });
-				
-				setTimeout(() => {
+				try {
+					uni.showLoading({ title: '修改中...', mask: true });
+					const { changePassword } = await import('@/api/user.js');
+					const res = await changePassword({
+						old_password: oldPassword,
+						new_password: newPassword
+					});
 					uni.hideLoading();
-					uni.showToast({ title: '密码修改成功，请重新登录', icon: 'success', duration: 2000 });
-					this.closePasswordModal();
-					setTimeout(() => {
-						this.logout();
-					}, 2000);
-				}, 1000);
+					if (res && (res.message?.includes('成功') || res.code === 200)) {
+						uni.showToast({ title: '密码修改成功，请重新登录', icon: 'success', duration: 2000 });
+						this.closePasswordModal();
+						setTimeout(() => { this.logout(); }, 2000);
+					} else {
+						this.passwordError = res?.detail || res?.message || '密码修改失败';
+					}
+				} catch (err) {
+					uni.hideLoading();
+					this.passwordError = err?.message || err?.detail || '密码修改失败，请检查输入后重试';
+				}
 			},
 			showLogoutConfirm() {
 				this.showUserCard = false;
@@ -3092,6 +3179,61 @@
 			// 显示截止日期管理
 			showDeadlineManagement() {
 				this.showDeadlineModal = true;
+			},
+
+			// 打开智能体权限申请弹窗
+			async openAgentPermissionModal() {
+				this.showAgentPermissionModal = true;
+				this.agentPermissionLoading = true;
+				try {
+					const adminInfo = await this.getOrCreateAdmin();
+					const adminId = adminInfo.username || 'admin';
+					const { getAgentPermissionRequests } = await import('@/api/admin.js');
+					const res = await getAgentPermissionRequests(adminId);
+					const messages = (res && res.messages) ? res.messages : [];
+					this.agentPermissionList = messages.map(m => ({
+						messageId: m.metadata && m.metadata.message_id ? m.metadata.message_id : String(m.id),
+						content: m.content || '',
+						receivedTime: m.received_time ? m.received_time.replace('T', ' ').slice(0, 16) : ''
+					}));
+				} catch (e) {
+					console.error('加载智能体权限申请失败:', e);
+					uni.showToast({ title: e?.message || '加载失败', icon: 'none' });
+				} finally {
+					this.agentPermissionLoading = false;
+				}
+			},
+
+			// 关闭智能体权限申请弹窗
+			closeAgentPermissionModal() {
+				this.showAgentPermissionModal = false;
+				this.agentPermissionList = [];
+				this.agentPermissionHandling = null;
+			},
+
+			// 处理智能体权限申请（同意/拒绝）
+			async handleAgentPermission(item, action) {
+				if (this.agentPermissionHandling === item.messageId) return;
+				this.agentPermissionHandling = item.messageId;
+				try {
+					const adminInfo = await this.getOrCreateAdmin();
+					const currentUser = {
+						sub: adminInfo.id || 1,
+						roles: ['admin'],
+						username: adminInfo.username || 'admin'
+					};
+					const { handleAgentPermissionRequest } = await import('@/api/admin.js');
+					await handleAgentPermissionRequest(item.messageId, action, currentUser);
+					uni.showToast({ title: action === 'approve' ? '已同意申请' : '已拒绝申请', icon: 'success' });
+					// 处理成功后从列表移除该项
+					const idx = this.agentPermissionList.findIndex(i => i.messageId === item.messageId);
+					if (idx > -1) this.agentPermissionList.splice(idx, 1);
+				} catch (e) {
+					console.error('处理权限申请失败:', e);
+					uni.showToast({ title: e?.message || '操作失败', icon: 'none' });
+				} finally {
+					this.agentPermissionHandling = null;
+				}
 			},
 			
 			// 关闭截止日期管理弹窗
@@ -3333,40 +3475,31 @@
 				
 				try {
 					const { getGroupMembers } = await import('@/api/admin.js');
-					const adminInfo = uni.getStorageSync('systemAdminInfo') || {};
-					// 根据 Swagger 要求构造 current_user 参数
+					const adminInfo = await this.getOrCreateAdmin();
 					const currentUser = {
-						sub: adminInfo.id || 1,
-						username: adminInfo.username || 'admin',
+						sub: String(adminInfo.id || 1),
+						username: String(adminInfo.username || 'admin'),
 						roles: ['admin']
 					};
 					
-					// 使用 group.code（即 group_id）作为路径参数，如果没有 code 则使用 id
 					const groupId = group.code || group.id;
-					console.log('获取群组成员，groupId:', groupId, 'currentUser:', currentUser);
-					const result = await getGroupMembers(groupId, {}, currentUser);
+					console.log('获取群组成员，groupId:', groupId);
+					
+					// 一次调用，member_type=all 获取全部成员
+					const result = await getGroupMembers(groupId, { member_type: 'all' }, currentUser);
 					console.log('获取群组成员返回结果:', result);
 					
-					// 处理返回数据，后端直接返回对象，不是 { code: 200, data: ... } 格式
 					const responseData = result.data || result;
-					if (responseData && responseData.members) {
-						// 处理成员数据
-						const members = responseData.members || [];
-						this.groupMembers = {
-							teachers: members.filter(m => m.member_type === 'teacher'),
-							students: members.filter(m => m.member_type === 'student')
-						};
-						console.log('处理后的成员数据:', this.groupMembers);
-					} else {
-						this.groupMembers = { teachers: [], students: [] };
-					}
+					const members = responseData.members || responseData.items || [];
+					this.groupMembers = {
+						teachers: members.filter(m => m.member_type === 'teacher'),
+						students: members.filter(m => m.member_type === 'student')
+					};
+					console.log('处理后的成员数据:', this.groupMembers);
 				} catch (error) {
 					console.error('获取群组成员失败:', error);
 					this.groupMembers = { teachers: [], students: [] };
-					uni.showToast({
-						title: error.message || '获取成员失败',
-						icon: 'none'
-					});
+					uni.showToast({ title: error.message || '获取成员失败', icon: 'none' });
 				} finally {
 					this.loadingMembers = false;
 				}
@@ -4490,7 +4623,8 @@
 			},
 			teacherIdFromMemberRecord(m) {
 				if (!m) return '';
-				const v = m.member_id ?? m.account_id;
+				// 支持多种字段名称：member_id / account_id / id / teacher_id / user_id
+				const v = m.member_id ?? m.account_id ?? m.id ?? m.teacher_id ?? m.user_id;
 				return v != null && v !== '' ? String(v) : '';
 			},
 			/**
@@ -4515,18 +4649,22 @@
 				const g = picked.group;
 				const groupId = String(g.group_id ?? g.id ?? g.code);
 				const resolvedName = (g.group_name || g.name || keyword).trim();
-				const memRes = await getGroupMembers(
-					groupId,
-					{ member_type: 'teacher' },
-					currentUser
-				);
-				const members = memRes?.members || memRes?.items || [];
-				if (!members.length) {
-					return { ok: false, reason: 'no_teacher', message: '该群暂无教师成员' };
-				}
-				const teacherId = this.teacherIdFromMemberRecord(members[0]);
-				if (!teacherId) {
-					return { ok: false, reason: 'no_teacher_id', message: '无法解析教师 ID' };
+				let teacherId = '';
+				try {
+					const memRes = await getGroupMembers(
+						groupId,
+						{ member_type: 'teacher' },
+						currentUser
+					);
+					const members = memRes?.members || memRes?.items || [];
+					if (members.length) {
+						teacherId = this.teacherIdFromMemberRecord(members[0]);
+					}
+					if (!teacherId) {
+						console.warn('[resolveBatchDownload] 无法解析教师 ID，成员原始数据:', members[0]);
+					}
+				} catch (e) {
+					console.warn('[resolveBatchDownload] 获取成员失败，将继续下载:', e);
 				}
 				return {
 					ok: true,
@@ -4598,22 +4736,26 @@
 				if (!this.selectedGroup) return;
 				try {
 					const adminInfo = await this.getOrCreateAdmin();
-					const { getGroupPapersList } = await import('@/api/admin.js');
-					const teacherId =
-						this.batchDownloadTeacherId != null && this.batchDownloadTeacherId !== ''
-							? this.batchDownloadTeacherId
-							: null;
-					const result = await getGroupPapersList(
-						this.selectedGroup.value,
-						adminInfo,
-						teacherId
-					);
-					const papers = result?.papers || result?.data?.papers || [];
+					const { batchDownloadGroupPapers } = await import('@/api/admin.js');
+					const groupId = this.selectedGroup.value;
+					const listResult = await batchDownloadGroupPapers(groupId, 'zip', adminInfo);
+					let papersData = listResult;
+					if (listResult instanceof ArrayBuffer) {
+						try {
+							const text = new TextDecoder().decode(listResult);
+							papersData = JSON.parse(text);
+						} catch (e) {
+							// 实际是 ZIP 二进制文件，说明接口直接返回了文件，无法预览数量
+							this.downloadCount = 1;
+							this.downloadSize = 0;
+							return;
+						}
+					}
+					const papers = papersData?.papers || papersData?.data?.papers || [];
 					this.downloadCount = papers.length;
-					// 计算总大小：累加每篇论文的 size
 					const totalBytes = papers.reduce((sum, p) => sum + (p.size || 0), 0);
 					this.downloadSize = totalBytes;
-					console.log('论文列表:', papers, '总大小:', totalBytes);
+					console.log('[loadGroupPapersCount] 论文列表:', papers.length, '篇，总大小:', totalBytes);
 				} catch (err) {
 					console.warn('获取论文数量失败:', err);
 					this.downloadCount = 0;
@@ -5770,57 +5912,6 @@
 				});
 			},
 			
-			// 加载群组成员统计信息
-			async loadGroupMembersStats() {
-				if (!this.groups || this.groups.length === 0) return;
-				
-				try {
-					const adminInfo = await this.getOrCreateAdmin();
-					const currentUser = {
-						sub: String(adminInfo.id),
-						roles: adminInfo.roles,
-						username: String(adminInfo.username)
-					};
-					
-					const { getGroupMembers } = await import('@/api/admin.js');
-					
-					// 并行获取所有群组的成员信息
-					await Promise.all(this.groups.map(async (group, index) => {
-						try {
-							// 获取教师成员
-							const teachersResult = await getGroupMembers(
-								group.code || group.id,
-								{ member_type: 'teacher' },
-								currentUser
-							);
-							
-							// 获取学生成员
-							const studentsResult = await getGroupMembers(
-								group.code || group.id,
-								{ member_type: 'student' },
-								currentUser
-							);
-							
-							// 更新统计（支持 members 或 items 字段）
-							const teacherCount = teachersResult.members?.length || teachersResult.items?.length || 0;
-							const studentCount = studentsResult.members?.length || studentsResult.items?.length || 0;
-							
-							// 更新群组数据
-							this.groups[index].teacherCount = teacherCount;
-							this.groups[index].studentCount = studentCount;
-							
-							console.log(`群组 ${group.name} 统计更新: 教师${teacherCount}人, 学生${studentCount}人`);
-						} catch (error) {
-							console.error(`获取群组 ${group.name} 成员信息失败:`, error);
-						}
-					}));
-					
-					console.log('所有群组成员统计更新完成');
-				} catch (error) {
-					console.error('加载群组成员统计失败:', error);
-				}
-			},
-			
 			// 加载群组列表
 			async loadGroupList(filters = {}) {
 				console.log('开始加载群组列表...');
@@ -5856,7 +5947,7 @@
 						name: g.name,
 						value: g.id
 					}));
-					
+									
 					if (this.groups.length === 0) {
 						let emptyText = '暂无群组数据';
 						if (keyword) {
@@ -5867,8 +5958,6 @@
 							icon: 'none'
 						});
 					}
-					
-					this.loadGroupMembersStats();
 				} catch (error) {
 					console.error('加载群组列表失败:', error);
 					this.groups = [];
@@ -6956,300 +7045,6 @@
 		color: var(--error);
 		margin-top: 6px;
 		display: block;
-	}
-	
-	/* 修改密码弹窗样式 - 与学生页面保持一致 */
-	.modal-backdrop {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background: rgba(0, 0, 0, 0.5);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 1000;
-		backdrop-filter: blur(4px);
-	}
-	
-	.modal-content {
-		background: var(--surface-container-lowest);
-		border-radius: var(--radius-lg);
-		width: 90%;
-		max-width: 400px;
-		max-height: 80vh;
-		overflow: hidden;
-		box-shadow: var(--shadow-ambient);
-		animation: modalSlideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-		display: flex;
-		flex-direction: column;
-	}
-	
-	@keyframes modalSlideIn {
-		from {
-			opacity: 0;
-			transform: translateY(-30px) scale(0.95);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0) scale(1);
-		}
-	}
-	
-	.modal-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: var(--spacing-4) var(--spacing-5);
-		background: var(--surface-container-low);
-		border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-	}
-	
-	.modal-title {
-		font-size: 1.125rem;
-		font-weight: 600;
-		font-family: var(--font-body);
-		color: var(--on-surface);
-	}
-	
-	.modal-close {
-		font-size: 1.5rem;
-		color: var(--on-surface-variant);
-		cursor: pointer;
-		padding: var(--spacing-1);
-		transition: color 0.2s;
-	}
-	
-	.modal-close:hover {
-		color: var(--on-surface);
-	}
-	
-	.modal-body {
-		padding: var(--spacing-5);
-		flex: 1;
-		overflow-y: auto;
-	}
-	
-	.modal-footer {
-		display: flex;
-		padding: var(--spacing-4) var(--spacing-5);
-		gap: var(--spacing-3);
-		background: var(--surface-container-low);
-		border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-	}
-	
-	.form-item {
-		margin-bottom: var(--spacing-4);
-	}
-	
-	.form-label {
-		display: block;
-		font-size: 0.875rem;
-		font-weight: 500;
-		font-family: var(--font-body);
-		color: var(--on-surface);
-		margin-bottom: var(--spacing-2);
-	}
-	
-	.form-input {
-		width: 100%;
-		height: 44px;
-		padding: 0 var(--spacing-4);
-		border: none;
-		border-radius: var(--radius-md);
-		font-size: 0.875rem;
-		font-family: var(--font-body);
-		color: var(--on-surface);
-		background: var(--surface-container-low);
-		box-sizing: border-box;
-		transition: all 0.2s;
-	}
-	
-	.form-input:focus {
-		background: var(--surface-container-high);
-		outline: none;
-	}
-	
-	.form-tips {
-		margin-top: var(--spacing-3);
-		padding: var(--spacing-3);
-		background: var(--amber-tint);
-		border-radius: var(--radius-md);
-	}
-	
-	.form-tips.error-tips {
-		background: var(--error-container);
-	}
-	
-	.tips-text {
-		font-size: 0.75rem;
-		font-weight: 400;
-		font-family: var(--font-body);
-		color: var(--on-amber);
-	}
-	
-	.tips-text.error-text {
-		color: var(--on-error-container);
-	}
-	
-	.btn {
-		flex: 1;
-		padding: 12px;
-		text-align: center;
-		font-size: 15px;
-		font-weight: 600;
-		cursor: pointer;
-		transition: background 0.2s;
-		border: none;
-		outline: none;
-	}
-	
-	.btn-cancel {
-		background: var(--surface-container-high);
-		color: var(--on-surface-variant);
-	}
-	
-	.btn-cancel:hover {
-		background: var(--surface-container-low);
-	}
-	
-	.btn-confirm {
-		background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
-		color: white;
-		box-shadow: var(--shadow-primary);
-	}
-	
-	.btn-confirm:hover {
-		box-shadow: 0 6px 20px rgba(0, 91, 191, 0.35);
-		transform: translateY(-1px);
-	}
-	
-	.password-modal-content {
-		max-width: 400px !important;
-	}
-	
-	.password-modal-content .modal-body {
-		padding: var(--spacing-8);
-	}
-	
-	.password-modal-content .form-item {
-		margin-bottom: var(--spacing-6);
-	}
-	
-	.password-modal-content .form-label {
-		display: block;
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: var(--on-surface);
-		margin-bottom: var(--spacing-3);
-		font-family: var(--font-body);
-	}
-	
-	.password-modal-content .form-input {
-		width: 100%;
-		height: 48px;
-		padding: 0 var(--spacing-4);
-		border: 1px solid var(--outline-variant);
-		border-radius: var(--radius-md);
-		font-size: 1rem;
-		font-family: var(--font-body);
-		background: var(--surface-container-lowest);
-		transition: all 0.2s ease;
-	}
-	
-	.password-modal-content .form-input:focus {
-		border-color: var(--primary);
-		box-shadow: 0 0 0 3px rgba(0, 91, 191, 0.1);
-		outline: none;
-	}
-	
-	.password-modal-content .form-tips {
-		margin-top: var(--spacing-5);
-		padding: var(--spacing-4);
-		background: var(--amber-tint);
-		border-radius: var(--radius-md);
-	}
-	
-	.password-modal-content .form-tips.error-tips {
-		background: var(--error-container);
-	}
-	
-	.password-modal-content .tips-text {
-		font-size: 0.875rem;
-		color: var(--on-amber);
-	}
-	
-	.password-modal-content .tips-text.error-text {
-		color: var(--on-error-container);
-	}
-	
-	.password-modal-content .modal-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: var(--spacing-4) var(--spacing-5);
-		background: var(--surface-container-low);
-		border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-		min-height: 56px;
-	}
-	
-	.password-modal-content .modal-title {
-		font-size: 1.125rem;
-		font-weight: 600;
-		font-family: var(--font-body);
-		color: var(--on-surface);
-	}
-	
-	.password-modal-content .modal-close {
-		font-size: 1.5rem;
-		color: var(--on-surface-variant);
-		cursor: pointer;
-		padding: var(--spacing-1);
-		transition: color 0.2s;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 32px;
-		height: 32px;
-		border-radius: var(--radius-md);
-	}
-	
-	.password-modal-content .modal-close:hover {
-		color: var(--on-surface);
-		background: var(--surface-container-high);
-	}
-	
-	.password-modal-content .modal-footer {
-		display: flex;
-		border-top: 1px solid var(--surface-container-high);
-	}
-	
-	.password-modal-content .btn {
-		flex: 1;
-		padding: 16px;
-		text-align: center;
-		font-size: 15px;
-		font-weight: 600;
-		cursor: pointer;
-		transition: background 0.2s;
-	}
-	
-	.password-modal-content .btn-cancel {
-		color: var(--on-surface-variant);
-		border-right: 1px solid var(--surface-container-high);
-	}
-	
-	.password-modal-content .btn-cancel:hover {
-		background: #f0f0f0;
-	}
-	
-	.password-modal-content .btn-confirm {
-		color: var(--primary);
-	}
-	
-	.password-modal-content .btn-confirm:hover {
-		background: rgba(0, 91, 191, 0.08);
 	}
 	
 	/* ============================================
@@ -12702,8 +12497,15 @@
 			display: grid;
 			grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
 			gap: 36rpx;
-			align-items: start;
+			align-items: stretch;
 		}
+	}
+
+	/* 左侧列：截止日期 + 智能体权限，与右侧论文细项等高 */
+	.dash-left-col {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
 	}
 
 	.dash-panel {
@@ -12880,7 +12682,230 @@
 	.dashboard-update-time {
 		margin-top: 8rpx;
 	}
-	
+
+	/* 智能体权限管理卡片 */
+	.dash-panel--agent-permission {
+	}
+
+	.dash-deadline-cal--agent {
+		background: rgba(0, 91, 191, 0.08);
+		color: #005bbf;
+	}
+
+	/* 智能体权限申请弹窗 */
+	.agent-permission-modal-mask {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background: rgba(0, 0, 0, 0.45);
+		backdrop-filter: blur(8rpx);
+		-webkit-backdrop-filter: blur(8rpx);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 2000;
+		animation: fadeIn 0.2s ease;
+		--primary: #005bbf;
+		--on-surface: #191c1d;
+		--on-surface-variant: #414754;
+		--surface-container-high: #e7e8e9;
+		--error: #ba1a1a;
+		--outline-variant: #c1c6d6;
+		--surface-container-lowest: #ffffff;
+	}
+
+	.agent-permission-modal-content {
+		background: #fff;
+		border-radius: 20px;
+		width: 90%;
+		max-width: 600px;
+		max-height: 82vh;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+		box-shadow: var(--shadow-xl, 0 20px 25px -5px rgba(0,0,0,0.15));
+		animation: slideUp 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+	}
+
+	.agent-permission-modal-content .admin-custom-modal-header {
+		position: relative;
+	}
+
+	.agent-modal-close {
+		position: absolute;
+		right: 20px;
+		top: 50%;
+		transform: translateY(-50%);
+		cursor: pointer;
+		color: var(--on-surface-variant);
+		display: flex;
+		align-items: center;
+	}
+
+	.agent-modal-close .material-symbols-outlined {
+		font-size: 20px;
+	}
+
+	.agent-permission-modal-body {
+		padding: 0;
+		overflow-y: auto;
+		flex: 1;
+	}
+
+	/* 加载中状态 */
+	.agent-permission-loading {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		padding: 48px 24px;
+		gap: 12px;
+	}
+
+	.agent-loading-icon {
+		font-size: 32px;
+		color: var(--primary);
+		animation: spin 1.2s linear infinite;
+	}
+
+	@keyframes spin {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
+	}
+
+	.agent-loading-text {
+		font-size: 14px;
+		color: var(--on-surface-variant);
+	}
+
+	/* 空状态 */
+	.agent-permission-empty {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		padding: 48px 24px;
+		gap: 12px;
+	}
+
+	.agent-empty-icon {
+		font-size: 40px;
+		color: #c4c7cc;
+	}
+
+	.agent-empty-text {
+		font-size: 14px;
+		color: var(--on-surface-variant);
+	}
+
+	/* 申请列表 */
+	.agent-permission-list {
+		padding: 8px 0;
+	}
+
+	.agent-permission-item {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		padding: 16px 24px;
+		border-bottom: 1px solid var(--surface-container-high);
+	}
+
+	.agent-permission-item:last-child {
+		border-bottom: none;
+	}
+
+	.agent-permission-item-main {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.agent-permission-item-content {
+		font-size: 14px;
+		color: var(--on-surface);
+		line-height: 1.5;
+	}
+
+	.agent-permission-item-time {
+		font-size: 12px;
+		color: var(--on-surface-variant);
+	}
+
+	.agent-permission-item-actions {
+		display: flex;
+		gap: 8px;
+		flex-shrink: 0;
+	}
+
+	.agent-action-btn {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding: 6px 14px;
+		border-radius: 8px;
+		font-size: 13px;
+		font-weight: 600;
+		cursor: pointer;
+		transition: opacity 0.2s;
+	}
+
+	.agent-action-btn--approve {
+		background: rgba(0, 91, 191, 0.1);
+		color: #005bbf;
+	}
+
+	.agent-action-btn--reject {
+		background: rgba(186, 26, 26, 0.1);
+		color: #ba1a1a;
+	}
+
+	.agent-action-btn--disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.agent-action-btn .material-symbols-outlined {
+		font-size: 16px;
+	}
+
+	/* 数量 Badge */
+	.agent-count-badge {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 22px;
+		height: 22px;
+		padding: 0 6px;
+		border-radius: 11px;
+		background: #005bbf;
+		color: #fff;
+		font-size: 12px;
+		font-weight: 700;
+		margin-left: 4px;
+	}
+
+	/* 列表数量过多提示条 */
+	.agent-list-hint {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 10px 24px;
+		background: rgba(0, 91, 191, 0.06);
+		border-bottom: 1px solid rgba(0, 91, 191, 0.1);
+		font-size: 13px;
+		color: #005bbf;
+	}
+
+	.agent-list-hint .material-symbols-outlined {
+		font-size: 16px;
+		flex-shrink: 0;
+	}
+
 	/* 截止日期管理弹窗（与群组 / admin-dialog 一致） */
 	.deadline-modal {
 		position: fixed;
