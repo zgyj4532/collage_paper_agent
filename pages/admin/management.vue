@@ -168,7 +168,7 @@
 								<text class="tip-item">1. 支持CSV格式（.csv）和XLSX格式(.xlsx)
 								</text>
 								<text class="tip-item">2. 文件大小不超过10MB</text>
-								<text class="tip-item">3. 必须包含以下列：群组编号、群组名称、教师工号、学生学号、学生姓名</text>
+								<text class="tip-item">3. 必须包含以下列：群组编号、群组名称、教师工号、学生学号、学生姓名（其中群组编号为纯数字）</text>
 							</view>
 							<view class="import-actions">
 								<button class="download-template-btn" @click="downloadTemplate('tpl_1bd39fc2', '师生关系导入模板.xlsx')">下载模板文件</button>
@@ -1466,9 +1466,22 @@
 						<text class="form-label">群组名称</text>
 						<input
 							class="form-input admin-dialog-input"
+							:class="{ 'admin-dialog-input--error': groupForm.error && !groupForm.name }"
 							v-model="groupForm.name"
 							placeholder="请输入群组名称"
+							@input="groupForm.error = ''"
 						/>
+					</view>
+					<view class="form-item admin-dialog-form-item">
+						<text class="form-label">群组编号</text>
+						<input
+							class="form-input admin-dialog-input"
+							:class="{ 'admin-dialog-input--error': groupForm.error && groupForm.code && !/^\d+$/.test(groupForm.code) }"
+							v-model="groupForm.code"
+							placeholder="请输入群组编号（只能纯数字，留空则自动生成）"
+							@input="groupForm.error = ''"
+						/>
+						<text v-if="groupForm.error" class="admin-dialog-error-text">{{ groupForm.error }}</text>
 					</view>
 				</view>
 				<view class="admin-dialog-footer">
@@ -2010,7 +2023,8 @@
 				groupForm: {
 					name: '',
 					code: '',
-					active: true
+					active: true,
+					error: ''
 				},
 				// 截止日期管理
 				showDeadlineModal: false,
@@ -3228,7 +3242,8 @@
 				this.groupForm = {
 					name: '',
 					code: '',
-					active: true
+					active: true,
+					error: ''
 				};
 				this.showGroupModal = true;
 			},
@@ -3237,7 +3252,8 @@
 				this.groupForm = {
 					name: group.name,
 					code: group.code,
-					active: group.active
+					active: group.active,
+					error: ''
 				};
 				this.showGroupModal = true;
 			},
@@ -3562,11 +3578,13 @@
 			},
 			
 			async saveGroup() {
+				this.groupForm.error = '';
 				if (!this.groupForm.name) {
-					uni.showToast({
-						title: '请输入群组名称',
-						icon: 'none'
-					});
+					this.groupForm.error = '请输入群组名称';
+					return;
+				}
+				if (this.groupForm.code && !/^\d+$/.test(this.groupForm.code)) {
+					this.groupForm.error = '群组编号只能包含数字';
 					return;
 				}
 				
@@ -11212,6 +11230,19 @@
 		background: #fff;
 		border-color: #005bbf;
 		box-shadow: 0 0 0 3rpx rgba(0, 91, 191, 0.1);
+	}
+	
+	.admin-dialog-input--error {
+		border-color: #ef4444 !important;
+		background: #fef2f2 !important;
+	}
+	
+	.admin-dialog-error-text {
+		font-size: 24rpx;
+		color: #ef4444;
+		margin-top: 8rpx;
+		display: block;
+		line-height: 1.4;
 	}
 	
 	.admin-dialog-picker {
